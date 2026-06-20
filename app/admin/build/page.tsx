@@ -19,6 +19,7 @@ import {
   type AllBuilderData,
   type HealthIssue,
 } from "@/lib/builder";
+import { autoAssignWeek, computePrior, type AutoConfig } from "@/lib/autoSchedule";
 import type { Instructor } from "@/lib/types";
 
 const LEVEL_ORDER: Record<string, number> = {
@@ -44,6 +45,56 @@ export default function ScheduleBuilderPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(null);
+  const [showAuto, setShowAuto] = useState(false);
+
+  function runAuto(opts: { scope: "current" | "all"; config: AutoConfig; targetWeek: number }) {
+    if (!data) return;
+    if (
+      opts.config.mode === "rebuild" &&
+      !confirm("Rebuild from scratch clears existing lessons for the chosen week(s) and re-assigns. Continue?")
+    )
+      return;
+
+    const teaching = data.instructors; // active, guards already excluded
+    const activeStudents = data.students.filter((s) => s.active !== false);
+    const weeksToRun =
+      opts.scope === "all"
+        ? data.weeks.map((w) => w.week_number)
+        : [opts.targetWeek];
+
+    let working = { ...assignments };
+    let placed = 0,
+      partial = 0;
+    const unplaced: string[] = [];
+
+    for (const wk of weeksToRun) {
+      const weekObj = data.weeks.find((w) => w.week_number === wk);
+      if (!weekObj) continue;
+      const prior = computePrior(working, data.dateToWeek, wk);
+      const res = autoAssignWeek({
+        days: getWeekDays(weekObj),
+        instructors: teaching,
+        students: activeStudents,
+        assignments: working,
+        offCells: data.offCells,
+        requestedByStudent: data.requestedByStudent,
+        priorByStudent: prior,
+        config: opts.config,
+      });
+      working = res.assignments;
+      placed += res.report.placed;
+      partial += res.report.partial;
+      res.report.unplaced.forEach((u) => unplaced.push(u.name));
+    }
+
+    setAssignments(working);
+    setShowAuto(false);
+    const couldnt = Array.from(new Set(unplaced));
+    setToast({
+      msg: `Auto-fill: ${placed} placed · ${partial} partial${couldnt.length ? ` · ${couldnt.length} couldn't place` : ""} — review & Save`,
+      kind: couldnt.length ? "error" : "success",
+    });
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -219,6 +270,9 @@ export default function ScheduleBuilderPage() {
                   <option key={i.id} value={i.id}>{i.name}</option>
                 ))}
               </select>
+              <button onClick={() => setShowAuto(true)} className="camp-btn-orange px-4 py-1.5 text-sm">
+                ✨ Auto-fill
+              </button>
               <span className="ml-auto text-sm font-semibold text-brand-text/70">
                 {unplacedCount} kid{unplacedCount === 1 ? "" : "s"} unplaced all summer
               </span>
@@ -365,8 +419,89 @@ export default function ScheduleBuilderPage() {
         </div>
       ) : null}
 
+      {showAuto && data ? (
+        <AutoModal weeks={data.weeks} onClose={() => setShowAuto(false)} onRun={runAuto} />
+      ) : null}
+
       {toast ? <Toast message={toast.msg} kind={toast.kind} onDismiss={() => setToast(null)} /> : null}
     </main>
+  );
+}
+
+function AutoModal({
+  weeks,
+  onClose,
+  onRun,
+}: {
+  weeks: { week_number: number; label: string | null }[];
+  onClose: () => void;
+  onRun: (opts: { scope: "current" | "all"; config: AutoConfig; targetWeek: number }) => void;
+}) {
+  const [scope, setScope] = useState<"current" | "all">("current");
+  const [targetWeek, setTargetWeek] = useState(weeks[0]?.week_number ?? 1);
+  const [lessonsPerKid, setLessonsPerKid] = useState(1);
+  const [maxPerSlot, setMaxPerSlot] = useState(2);
+  const [mode, setMode] = useState<"fill" | "rebuild">("fill");
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
+      <button aria-label="Close" onClick={onClose} className="absolute inset-0 bg-black/40" />
+      <div className="relative w-full max-w-md rounded-t-3xl bg-brand-cream p-5 shadow-2xl sm:rounded-3xl sm:border-2 sm:border-brand-green">
+        <h2 className="font-display text-2xl text-brand-green">✨ Auto-fill schedule</h2>
+        <p className="mt-1 text-sm text-brand-text/70">
+          Generates a draft using availability, parent requests, prior-week
+          consistency, siblings and the ratio cap. Review the health panel and
+          edit before saving — nothing is saved automatically.
+        </p>
+
+        <div className="mt-4 space-y-3 text-sm">
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wide text-brand-green">Apply to</span>
+            <div className="mt-1 flex gap-2">
+              <button onClick={() => setScope("current")} className={`flex-1 rounded-full px-3 py-1.5 font-bold ${scope === "current" ? "bg-brand-green text-white" : "bg-brand-sand text-brand-text"}`}>One week</button>
+              <button onClick={() => setScope("all")} className={`flex-1 rounded-full px-3 py-1.5 font-bold ${scope === "all" ? "bg-brand-green text-white" : "bg-brand-sand text-brand-text"}`}>All weeks</button>
+            </div>
+          </div>
+
+          {scope === "current" ? (
+            <label className="flex items-center justify-between">
+              <span className="font-semibold">Week</span>
+              <select value={targetWeek} onChange={(e) => setTargetWeek(parseInt(e.target.value, 10))} className="rounded-full border-2 border-brand-green bg-white px-3 py-1">
+                {weeks.map((w) => (
+                  <option key={w.week_number} value={w.week_number}>{w.label ?? `Week ${w.week_number}`}</option>
+                ))}
+              </select>
+            </label>
+          ) : null}
+
+          <label className="flex items-center justify-between">
+            <span className="font-semibold">Lessons per kid</span>
+            <input type="number" min={1} max={5} value={lessonsPerKid} onChange={(e) => setLessonsPerKid(parseInt(e.target.value, 10) || 1)} className="w-20 rounded-full border-2 border-brand-green bg-white px-3 py-1" />
+          </label>
+          <label className="flex items-center justify-between">
+            <span className="font-semibold">Max kids per slot</span>
+            <input type="number" min={1} max={6} value={maxPerSlot} onChange={(e) => setMaxPerSlot(parseInt(e.target.value, 10) || 1)} className="w-20 rounded-full border-2 border-brand-green bg-white px-3 py-1" />
+          </label>
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wide text-brand-green">Mode</span>
+            <div className="mt-1 flex gap-2">
+              <button onClick={() => setMode("fill")} className={`flex-1 rounded-full px-3 py-1.5 font-bold ${mode === "fill" ? "bg-brand-green text-white" : "bg-brand-sand text-brand-text"}`}>Fill gaps</button>
+              <button onClick={() => setMode("rebuild")} className={`flex-1 rounded-full px-3 py-1.5 font-bold ${mode === "rebuild" ? "bg-brand-orange text-white" : "bg-brand-sand text-brand-text"}`}>Rebuild</button>
+            </div>
+            <p className="mt-1 text-xs text-brand-text/60">
+              {mode === "fill" ? "Keeps current lessons, only adds kids who need slots." : "Clears the chosen week(s) and re-assigns everyone."}
+            </p>
+          </div>
+        </div>
+
+        <div className="mt-4 flex gap-2">
+          <button onClick={() => onRun({ scope, config: { lessonsPerKid, maxPerSlot, mode }, targetWeek })} className="camp-btn flex-1">
+            Generate draft
+          </button>
+          <button onClick={onClose} className="camp-btn-ghost">Cancel</button>
+        </div>
+      </div>
+    </div>
   );
 }
 

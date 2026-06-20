@@ -175,6 +175,13 @@ once** for one instructor.
   goals/notes), **↩ Yours** (already with this instructor another week),
   **👫 sib** (a sibling is with this instructor), level badge, special-needs
   flag, and how many slots they're in across the season.
+- **✨ Auto-fill** generates a draft automatically (one week or the whole
+  season) from all the data — availability, parent requests, prior-week
+  consistency, siblings, and a per-slot ratio cap. It's greedy and explainable
+  (requested instructor → consistency → siblings → least-loaded), never saves on
+  its own, and reports how many kids it placed / couldn't place. Tune *lessons
+  per kid*, *max kids per slot*, and *fill gaps vs rebuild*, then review the
+  health panel and Save.
 - **↓ Copy to later weeks** replicates an instructor's week into every later
   week (day-for-day), so kids keep the same instructor all summer — then adjust.
 - Grey cells are slots the instructor marked unavailable (you can still place a
