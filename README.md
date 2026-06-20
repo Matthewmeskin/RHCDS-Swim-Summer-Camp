@@ -197,6 +197,14 @@ The `students` table stores three layers of context:
 
 Parent and staff notes appear in the student goals modal when present.
 
+**Import Parent Preferences — `/admin/import/preferences`** — a flexible CSV
+importer (separate from the CampSite student export). Columns are auto-detected:
+a name (first/last or a single full-name column), an optional preferred
+instructor (matched to the roster — "Maya R." → Maya Rosales), and notes. It
+matches each row to an existing kid and writes `parent_notes` +
+`preferred_instructor_id`; unmatched kids/instructors are reported. Requested
+instructors then surface as **⭐ Requested** chips in the schedule builder.
+
 ---
 
 ## Pages

@@ -1,7 +1,11 @@
 import { requireSupabase } from "./supabaseClient";
 import type { ParsedStudent } from "./parseStudents";
 import type { ParseScheduleResult } from "./parseSchedule";
+import type { ParsedPreference } from "./parsePreferences";
 import { matchStudent, type MatchableStudent } from "./matchStudent";
+import { detectRequestedInstructor } from "./builder";
+import { detectSpecialNeeds } from "./specialNeeds";
+import type { Instructor } from "./types";
 
 export interface StudentImportResult {
   inserted: number;
@@ -161,6 +165,87 @@ export async function importSchedule(
     slotsInserted: slotRows.length,
     unavailableInserted: availRows.length,
     warnings,
+  };
+}
+
+export interface PreferencesImportResult {
+  updated: number;
+  matchedInstructors: number;
+  unmatchedStudents: string[];
+  unmatchedInstructors: string[];
+}
+
+/**
+ * Applies a parent-preferences CSV: matches each row to a student and writes
+ * parent_notes (+ preferred_instructor_id when a named instructor matches).
+ */
+export async function importPreferences(
+  rows: ParsedPreference[]
+): Promise<PreferencesImportResult> {
+  const db = requireSupabase();
+
+  const [{ data: studRows, error: sErr }, { data: instrRows, error: iErr }] =
+    await Promise.all([
+      db.from("students").select("id, first_name, last_name"),
+      db.from("instructors").select("*"),
+    ]);
+  if (sErr) throw sErr;
+  if (iErr) throw iErr;
+
+  const matchable: MatchableStudent[] = (studRows ?? []) as MatchableStudent[];
+  const instructors = (instrRows ?? []) as Instructor[];
+
+  let updated = 0;
+  let matchedInstructors = 0;
+  const unmatchedStudents: string[] = [];
+  const unmatchedInstructors: string[] = [];
+
+  for (const row of rows) {
+    const { student } = matchStudent(`${row.first_name} ${row.last_name}`, matchable);
+    if (!student) {
+      unmatchedStudents.push(`${row.first_name} ${row.last_name}`.trim());
+      continue;
+    }
+
+    const payload: Record<string, unknown> = {};
+    if (row.parent_notes) {
+      payload.parent_notes = row.parent_notes;
+      if (detectSpecialNeeds(row.parent_notes)) payload.special_needs = true;
+    }
+    if (row.preferred_instructor_raw) {
+      const match = detectRequestedInstructor(row.preferred_instructor_raw, instructors);
+      if (match) {
+        payload.preferred_instructor_id = match.instructorId;
+        matchedInstructors++;
+      } else {
+        unmatchedInstructors.push(row.preferred_instructor_raw);
+        // Keep the request visible even if it doesn't match a roster name.
+        const note = `Parent requested instructor: ${row.preferred_instructor_raw}`;
+        payload.parent_notes = payload.parent_notes
+          ? `${payload.parent_notes}\n${note}`
+          : note;
+      }
+    }
+
+    if (Object.keys(payload).length === 0) continue;
+
+    const { error } = await db.from("students").update(payload).eq("id", student.id);
+    if (error) throw error;
+    updated++;
+  }
+
+  await db.from("import_logs").insert({
+    file_type: "students",
+    rows_inserted: 0,
+    rows_updated: updated,
+    warnings: { unmatchedStudents, unmatchedInstructors, kind: "preferences" },
+  });
+
+  return {
+    updated,
+    matchedInstructors,
+    unmatchedStudents: Array.from(new Set(unmatchedStudents)),
+    unmatchedInstructors: Array.from(new Set(unmatchedInstructors)),
   };
 }
 
