@@ -15,8 +15,11 @@ import {
   fetchAllBuilderData,
   saveAllWeeks,
   copyInstructorWeekToLater,
+  checkSchedule,
   type AllBuilderData,
+  type HealthIssue,
 } from "@/lib/builder";
+import type { Instructor } from "@/lib/types";
 
 const LEVEL_ORDER: Record<string, number> = {
   "Non-Swimmer": 0, Beginner: 1, Intermediate: 2, Advanced: 3,
@@ -65,6 +68,17 @@ export default function ScheduleBuilderPage() {
     (data?.students ?? []).forEach((s) => m.set(s.id, s));
     return m;
   }, [data]);
+
+  const instructorsById = useMemo(() => {
+    const m = new Map<string, Instructor>();
+    (data?.instructors ?? []).forEach((i) => m.set(i.id, i));
+    return m;
+  }, [data]);
+
+  const issues = useMemo(() => {
+    if (!data) return [];
+    return checkSchedule(assignments, data.offCells, studentsById, instructorsById);
+  }, [assignments, data, studentsById, instructorsById]);
 
   const placedCount = useMemo(() => {
     const m = new Map<string, number>();
@@ -210,6 +224,9 @@ export default function ScheduleBuilderPage() {
               </span>
             </div>
 
+            {/* Schedule health checks (whole season, live) */}
+            <HealthPanel issues={issues} />
+
             {/* All weeks for the selected instructor */}
             <div className="mt-4 space-y-6">
               {data.weeks.map((week) => {
@@ -350,5 +367,46 @@ export default function ScheduleBuilderPage() {
 
       {toast ? <Toast message={toast.msg} kind={toast.kind} onDismiss={() => setToast(null)} /> : null}
     </main>
+  );
+}
+
+function HealthPanel({ issues }: { issues: HealthIssue[] }) {
+  const [open, setOpen] = useState(true);
+  const errors = issues.filter((i) => i.severity === "error").length;
+  const warns = issues.length - errors;
+
+  if (issues.length === 0) {
+    return (
+      <div className="mt-3 rounded-xl border border-brand-green/20 bg-brand-green/10 px-4 py-2 text-sm font-semibold text-brand-green">
+        ✓ No scheduling conflicts
+      </div>
+    );
+  }
+
+  return (
+    <div className="mt-3 overflow-hidden rounded-xl border border-brand-orange/30 bg-brand-orange/5">
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm font-bold text-brand-orange"
+      >
+        ⚠️ {issues.length} issue{issues.length === 1 ? "" : "s"}
+        <span className="font-semibold text-brand-text/60">
+          {errors ? `${errors} error${errors === 1 ? "" : "s"}` : ""}
+          {errors && warns ? " · " : ""}
+          {warns ? `${warns} warning${warns === 1 ? "" : "s"}` : ""}
+        </span>
+        <span className="ml-auto text-brand-text/50">{open ? "▾" : "▸"}</span>
+      </button>
+      {open ? (
+        <ul className="space-y-1 px-4 pb-3 text-sm">
+          {issues.map((i, idx) => (
+            <li key={idx} className="flex items-start gap-2">
+              <span>{i.severity === "error" ? "🛑" : "⚠️"}</span>
+              <span className="text-brand-text">{i.message}</span>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </div>
   );
 }

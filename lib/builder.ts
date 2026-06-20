@@ -1,7 +1,7 @@
 import { requireSupabase } from "./supabaseClient";
 import { fetchInstructors, fetchAllStudents } from "./data";
 import type { Instructor, Student, Week, InstructorAvailability } from "./types";
-import { parseISODate } from "./format";
+import { parseISODate, formatDayHeader, formatSlotLabel } from "./format";
 
 export const BUILDER_SLOTS = [
   { start: "16:30:00", end: "17:00:00", label: "4:30" },
@@ -419,6 +419,98 @@ export function copyInstructorWeekToLater(
     });
   }
   return next;
+}
+
+// ---------------------------------------------------------------------------
+// Schedule health checks
+// ---------------------------------------------------------------------------
+
+export interface HealthIssue {
+  severity: "error" | "warn";
+  message: string;
+}
+
+/** Max kids one instructor should have in a single slot (≈ 2.5:1 ratio). */
+export const SLOT_LOAD_WARN = 3;
+
+function slotLabel(date: string, hhmm: string): string {
+  const { day, date: d } = formatDayHeader(date);
+  return `${day} ${d}, ${formatSlotLabel(hhmm)}`;
+}
+
+/**
+ * Validates an in-progress schedule (whole season) and returns human-readable
+ * issues: kids double-booked, lessons placed in an instructor's Off slot, and
+ * instructors overloaded in one slot.
+ */
+export function checkSchedule(
+  assignments: Record<string, string[]>,
+  offCells: Set<string>,
+  students: Map<string, Student>,
+  instructors: Map<string, Instructor>
+): HealthIssue[] {
+  const issues: HealthIssue[] = [];
+  const name = (id: string) =>
+    students.get(id)
+      ? `${students.get(id)!.first_name} ${students.get(id)!.last_name}`
+      : "A kid";
+  const iname = (id: string) => instructors.get(id)?.name ?? "An instructor";
+
+  // student -> "date__hhmm" -> instructorIds (to catch double-booking)
+  const studentSlots = new Map<string, Map<string, Set<string>>>();
+
+  for (const [key, ids] of Object.entries(assignments)) {
+    if (!ids || ids.length === 0) continue;
+    const [instructorId, date, hhmm] = key.split("__");
+
+    // Lesson in an Off slot.
+    if (offCells.has(key)) {
+      issues.push({
+        severity: "warn",
+        message: `${iname(instructorId)} has a lesson in a slot marked Off — ${slotLabel(date, hhmm)}.`,
+      });
+    }
+
+    // Overloaded slot.
+    if (ids.length > SLOT_LOAD_WARN) {
+      issues.push({
+        severity: "warn",
+        message: `${iname(instructorId)} has ${ids.length} kids at once — ${slotLabel(date, hhmm)}.`,
+      });
+    }
+
+    const ds = `${date}__${hhmm}`;
+    for (const sid of ids) {
+      let m = studentSlots.get(sid);
+      if (!m) {
+        m = new Map();
+        studentSlots.set(sid, m);
+      }
+      let set = m.get(ds);
+      if (!set) {
+        set = new Set();
+        m.set(ds, set);
+      }
+      set.add(instructorId);
+    }
+  }
+
+  // Double-booked kids.
+  for (const [sid, slotMap] of studentSlots) {
+    for (const [ds, instrs] of slotMap) {
+      if (instrs.size > 1) {
+        const [date, hhmm] = ds.split("__");
+        const who = Array.from(instrs).map(iname).join(" & ");
+        issues.push({
+          severity: "error",
+          message: `${name(sid)} is booked with two instructors at once — ${slotLabel(date, hhmm)} (${who}).`,
+        });
+      }
+    }
+  }
+
+  // Errors first.
+  return issues.sort((a, b) => (a.severity === b.severity ? 0 : a.severity === "error" ? -1 : 1));
 }
 
 /** The most recent week (< given) that has any lesson slots. */
