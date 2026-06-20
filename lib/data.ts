@@ -163,6 +163,36 @@ export async function fetchUnmatchedNames(weekNumber: number | null): Promise<st
   return Array.from(new Set(names));
 }
 
+/**
+ * Replaces an instructor's unavailability for a week. `offSlots` are the slots
+ * the instructor is marking themselves OFF (everything else = available).
+ */
+export async function saveInstructorAvailability(
+  instructorId: string,
+  weekNumber: number,
+  offSlots: { date: string; start: string }[]
+): Promise<void> {
+  const db = requireSupabase();
+  const del = await db
+    .from("instructor_availability")
+    .delete()
+    .eq("instructor_id", instructorId)
+    .eq("week_number", weekNumber);
+  if (del.error) throw del.error;
+
+  if (offSlots.length) {
+    const rows = offSlots.map((o) => ({
+      instructor_id: instructorId,
+      lesson_date: o.date,
+      start_time: o.start,
+      is_available: false,
+      week_number: weekNumber,
+    }));
+    const { error } = await db.from("instructor_availability").insert(rows);
+    if (error) throw error;
+  }
+}
+
 export async function fetchAllStudents(): Promise<Student[]> {
   const db = requireSupabase();
   const { data, error } = await db

@@ -118,3 +118,9 @@ begin
     );
   end loop;
 end $$;
+
+-- Exception: instructors update their own availability from their (login-free)
+-- link, so anon may write to instructor_availability.
+drop policy if exists write_instructor_availability_anon on instructor_availability;
+create policy write_instructor_availability_anon
+  on instructor_availability for all to anon using (true) with check (true);

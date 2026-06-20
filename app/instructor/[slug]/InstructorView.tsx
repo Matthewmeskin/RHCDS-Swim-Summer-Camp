@@ -7,6 +7,7 @@ import Nav from "@/components/Nav";
 import LevelBadge from "@/components/LevelBadge";
 import CalendarGrid from "@/components/CalendarGrid";
 import StudentModal from "@/components/StudentModal";
+import AvailabilityEditor from "@/components/AvailabilityEditor";
 import ConfigNotice from "@/components/ConfigNotice";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import {
@@ -55,6 +56,8 @@ export default function InstructorView() {
   const [notFound, setNotFound] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Student | null>(null);
+  const [editingAvail, setEditingAvail] = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -78,7 +81,7 @@ export default function InstructorView() {
       })
       .catch((e) => setError(e.message ?? "Could not load schedule"))
       .finally(() => setLoading(false));
-  }, [slug, weekNumber]);
+  }, [slug, weekNumber, refreshTick]);
 
   // Deduplicated list of students this week.
   const myStudents = useMemo<Student[]>(() => {
@@ -90,6 +93,24 @@ export default function InstructorView() {
     return Array.from(map.values()).sort((a, b) =>
       `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
     );
+  }, [data]);
+
+  // Slots that already have a lesson (locked in the availability editor).
+  const lessonKeys = useMemo(() => {
+    const set = new Set<string>();
+    data?.slots.forEach((s) =>
+      set.add(`${s.lesson_date}__${s.start_time.slice(0, 5)}`)
+    );
+    return set;
+  }, [data]);
+
+  // Slots the instructor is currently marked off.
+  const initialOff = useMemo(() => {
+    const set = new Set<string>();
+    data?.availability.forEach((a) => {
+      if (!a.is_available) set.add(`${a.lesson_date}__${a.start_time.slice(0, 5)}`);
+    });
+    return set;
   }, [data]);
 
   const handleExport = useCallback(() => {
@@ -253,10 +274,37 @@ export default function InstructorView() {
           />
         </section>
 
-        {!isPrint && (isGuard ? false : hasLessons) ? (
-          <button onClick={handleExport} className="camp-btn no-print w-full">
-            📅 Export My Week to Calendar
-          </button>
+        {!isPrint && editingAvail && data.week ? (
+          <AvailabilityEditor
+            instructorId={data.instructor.id}
+            weekNumber={data.week.week_number}
+            days={days}
+            lessonKeys={lessonKeys}
+            initialOff={initialOff}
+            onClose={() => setEditingAvail(false)}
+            onSaved={() => {
+              setEditingAvail(false);
+              setRefreshTick((t) => t + 1);
+            }}
+          />
+        ) : null}
+
+        {!isPrint ? (
+          <div className="no-print flex flex-col gap-2 sm:flex-row">
+            {!editingAvail && data.week ? (
+              <button
+                onClick={() => setEditingAvail(true)}
+                className="camp-btn-ghost w-full sm:w-auto"
+              >
+                🗓️ Update my availability
+              </button>
+            ) : null}
+            {isGuard ? false : hasLessons ? (
+              <button onClick={handleExport} className="camp-btn w-full sm:flex-1">
+                📅 Export My Week to Calendar
+              </button>
+            ) : null}
+          </div>
         ) : null}
       </div>
 
