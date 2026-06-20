@@ -191,6 +191,32 @@ export async function saveInstructorAvailability(
     const { error } = await db.from("instructor_availability").insert(rows);
     if (error) throw error;
   }
+
+  // Record that this instructor submitted availability for the week (so the
+  // admin can see "set" vs "fully available but not touched").
+  await db
+    .from("availability_submissions")
+    .upsert(
+      { instructor_id: instructorId, week_number: weekNumber, updated_at: new Date().toISOString() },
+      { onConflict: "instructor_id,week_number" }
+    );
+}
+
+/** instructorId -> ISO timestamp they last submitted availability for a week. */
+export async function fetchAvailabilitySubmissions(
+  weekNumber: number
+): Promise<Record<string, string>> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("availability_submissions")
+    .select("instructor_id, updated_at")
+    .eq("week_number", weekNumber);
+  if (error) throw error;
+  const out: Record<string, string> = {};
+  for (const r of data ?? []) {
+    if (r.instructor_id) out[r.instructor_id] = r.updated_at as string;
+  }
+  return out;
 }
 
 export async function fetchAllStudents(): Promise<Student[]> {

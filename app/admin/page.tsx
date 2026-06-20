@@ -7,34 +7,25 @@ import ConfigNotice from "@/components/ConfigNotice";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import {
   fetchAdminStats,
-  fetchInstructors,
   fetchUnmatchedNames,
   fetchDefaultWeekNumber,
   type AdminStats,
 } from "@/lib/data";
-import type { Instructor } from "@/lib/types";
 
 const WEEK_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 
 export default function AdminDashboard() {
   const [week, setWeek] = useState<number>(1);
   const [stats, setStats] = useState<AdminStats | null>(null);
-  const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [unmatched, setUnmatched] = useState<string[]>([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return;
-    }
-    Promise.all([fetchDefaultWeekNumber(), fetchInstructors()])
-      .then(([def, instr]) => {
-        setInstructors(instr);
+    if (!isSupabaseConfigured) return;
+    fetchDefaultWeekNumber()
+      .then((def) => {
         if (def != null) setWeek(def);
       })
-      .catch(() => {})
-      .finally(() => setLoading(false));
+      .catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -142,36 +133,21 @@ export default function AdminDashboard() {
           </div>
         </section>
 
-        {/* Instructor QA links */}
-        <section className="mt-8">
-          <h3 className="font-display text-2xl text-brand-green">Instructor QA</h3>
-          {loading ? (
-            <p className="text-sm text-brand-text/60">Loading…</p>
-          ) : (
-            <ul className="mt-2 divide-y divide-brand-sand rounded-2xl border-2 border-brand-green bg-white">
-              {instructors.map((i) => (
-                <li key={i.id} className="flex items-center justify-between px-4 py-2.5">
-                  <span className="text-sm font-semibold">
-                    {i.name}
-                    {i.role === "guard" ? (
-                      <span className="ml-2 rounded-full bg-brand-aqua px-2 py-0.5 text-xs text-brand-text">
-                        Guard
-                      </span>
-                    ) : null}
-                  </span>
-                  {i.slug ? (
-                    <Link
-                      href={`/instructor/${i.slug}?week=${week}`}
-                      className="text-sm font-bold text-brand-green underline-offset-2 hover:underline"
-                    >
-                      Preview →
-                    </Link>
-                  ) : null}
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        {/* Instructor links + availability */}
+        <Link
+          href="/admin/instructors"
+          className="camp-card mt-8 flex items-center gap-4 p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
+        >
+          <div className="text-3xl">🔗</div>
+          <div className="flex-1">
+            <h2 className="font-display text-2xl text-brand-green">Instructor Links & Availability</h2>
+            <p className="text-sm text-brand-text/70">
+              Share each instructor's personal link, and see who's set their
+              availability for the week.
+            </p>
+          </div>
+          <span className="text-2xl text-brand-green">→</span>
+        </Link>
       </div>
     </main>
   );

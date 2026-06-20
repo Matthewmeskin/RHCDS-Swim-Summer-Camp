@@ -37,3 +37,18 @@ export function dateParts(iso: string): { y: number; mo: number; d: number } {
   const [y, mo, d] = iso.split("-").map((n) => parseInt(n, 10));
   return { y, mo, d };
 }
+
+/** "just now", "5 min ago", "3 hr ago", "2 days ago", or a date. */
+export function formatRelative(iso: string): string {
+  const then = new Date(iso).getTime();
+  const secs = Math.round((Date.now() - then) / 1000);
+  if (secs < 60) return "just now";
+  const mins = Math.round(secs / 60);
+  if (mins < 60) return `${mins} min ago`;
+  const hrs = Math.round(mins / 60);
+  if (hrs < 24) return `${hrs} hr ago`;
+  const days = Math.round(hrs / 24);
+  if (days < 7) return `${days} day${days === 1 ? "" : "s"} ago`;
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}

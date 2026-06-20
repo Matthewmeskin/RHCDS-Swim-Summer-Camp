@@ -74,6 +74,15 @@ create table if not exists import_logs (
   warnings jsonb
 );
 
+-- Tracks that an instructor submitted availability for a week (so the admin can
+-- tell "set, fully available" apart from "never touched").
+create table if not exists availability_submissions (
+  instructor_id uuid references instructors(id),
+  week_number int,
+  updated_at timestamptz default now(),
+  primary key (instructor_id, week_number)
+);
+
 -- Helpful query indexes.
 create index if not exists schedule_slots_week_idx on schedule_slots (week_number);
 create index if not exists schedule_slots_instructor_idx on schedule_slots (instructor_id);
@@ -124,3 +133,10 @@ end $$;
 drop policy if exists write_instructor_availability_anon on instructor_availability;
 create policy write_instructor_availability_anon
   on instructor_availability for all to anon using (true) with check (true);
+
+-- Availability submissions: instructors write from their link, admins read.
+alter table availability_submissions enable row level security;
+drop policy if exists all_availability_submissions on availability_submissions;
+create policy all_availability_submissions
+  on availability_submissions for all to anon, authenticated
+  using (true) with check (true);
