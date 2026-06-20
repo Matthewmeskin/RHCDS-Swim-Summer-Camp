@@ -1,0 +1,174 @@
+import { requireSupabase } from "./supabaseClient";
+import type {
+  Instructor,
+  Student,
+  Week,
+  ScheduleSlot,
+  InstructorAvailability,
+} from "./types";
+
+export interface SlotWithStudent extends ScheduleSlot {
+  students: Student | null;
+}
+
+export interface InstructorWeekData {
+  instructor: Instructor;
+  week: Week | null;
+  slots: SlotWithStudent[];
+  availability: InstructorAvailability[];
+}
+
+export async function fetchInstructors(): Promise<Instructor[]> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("instructors")
+    .select("*")
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as Instructor[];
+}
+
+export async function fetchWeeks(): Promise<Week[]> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("weeks")
+    .select("*")
+    .order("week_number", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as Week[];
+}
+
+/** The latest week that has any schedule data, falling back to max week. */
+export async function fetchDefaultWeekNumber(): Promise<number | null> {
+  const db = requireSupabase();
+  const { data: slot } = await db
+    .from("schedule_slots")
+    .select("week_number")
+    .order("week_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (slot?.week_number != null) return slot.week_number;
+
+  const { data: wk } = await db
+    .from("weeks")
+    .select("week_number")
+    .order("week_number", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return wk?.week_number ?? null;
+}
+
+export async function fetchInstructorBySlug(
+  slug: string
+): Promise<Instructor | null> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("instructors")
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as Instructor) ?? null;
+}
+
+export async function fetchInstructorWeek(
+  slug: string,
+  weekNumber: number | null
+): Promise<InstructorWeekData | null> {
+  const db = requireSupabase();
+  const instructor = await fetchInstructorBySlug(slug);
+  if (!instructor) return null;
+
+  const wk =
+    weekNumber ?? (await fetchDefaultWeekNumber()) ?? null;
+
+  let week: Week | null = null;
+  if (wk != null) {
+    const { data } = await db
+      .from("weeks")
+      .select("*")
+      .eq("week_number", wk)
+      .maybeSingle();
+    week = (data as Week) ?? null;
+  }
+
+  let slots: SlotWithStudent[] = [];
+  let availability: InstructorAvailability[] = [];
+
+  if (wk != null) {
+    const { data: slotData, error: slotErr } = await db
+      .from("schedule_slots")
+      .select("*, students(*)")
+      .eq("instructor_id", instructor.id)
+      .eq("week_number", wk)
+      .order("lesson_date", { ascending: true })
+      .order("start_time", { ascending: true });
+    if (slotErr) throw slotErr;
+    slots = (slotData ?? []) as SlotWithStudent[];
+
+    const { data: availData, error: availErr } = await db
+      .from("instructor_availability")
+      .select("*")
+      .eq("instructor_id", instructor.id)
+      .eq("week_number", wk);
+    if (availErr) throw availErr;
+    availability = (availData ?? []) as InstructorAvailability[];
+  }
+
+  return { instructor, week, slots, availability };
+}
+
+export interface AdminStats {
+  instructorCount: number;
+  studentCount: number;
+  slotsThisWeek: number;
+}
+
+export async function fetchAdminStats(weekNumber: number | null): Promise<AdminStats> {
+  const db = requireSupabase();
+  const [{ count: instructorCount }, { count: studentCount }] = await Promise.all([
+    db.from("instructors").select("*", { count: "exact", head: true }),
+    db.from("students").select("*", { count: "exact", head: true }),
+  ]);
+
+  let slotsThisWeek = 0;
+  if (weekNumber != null) {
+    const { count } = await db
+      .from("schedule_slots")
+      .select("*", { count: "exact", head: true })
+      .eq("week_number", weekNumber);
+    slotsThisWeek = count ?? 0;
+  }
+
+  return {
+    instructorCount: instructorCount ?? 0,
+    studentCount: studentCount ?? 0,
+    slotsThisWeek,
+  };
+}
+
+/** Unmatched raw student names in the schedule for a week (QA warnings). */
+export async function fetchUnmatchedNames(weekNumber: number | null): Promise<string[]> {
+  if (weekNumber == null) return [];
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("schedule_slots")
+    .select("student_name_raw")
+    .eq("week_number", weekNumber)
+    .not("student_name_raw", "is", null);
+  if (error) throw error;
+  const names = (data ?? [])
+    .map((r: { student_name_raw: string | null }) => r.student_name_raw)
+    .filter((n): n is string => Boolean(n));
+  return Array.from(new Set(names));
+}
+
+export async function fetchAllStudents(): Promise<Student[]> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("students")
+    .select("*")
+    .order("last_name", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as Student[];
+}

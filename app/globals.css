@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-brand-cream text-brand-text font-body;
+  }
+}
+
+@layer components {
+  .camp-card {
+    @apply bg-brand-sand border-2 border-brand-green rounded-2xl shadow-sm;
+  }
+  .camp-btn {
+    @apply inline-flex items-center justify-center bg-brand-green text-white rounded-full font-bold py-3 px-6 transition hover:brightness-110 active:brightness-95 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .camp-btn-orange {
+    @apply inline-flex items-center justify-center bg-brand-orange text-white rounded-full font-bold py-3 px-6 transition hover:brightness-110 active:brightness-95;
+  }
+}
+
+/* Print view: clean black & white, hide nav and interactive chrome. */
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .camp-card {
+    border-color: #000 !important;
+    background: #fff !important;
+    box-shadow: none !important;
+  }
+}
+
+.print-only {
+  display: none;
+}
+@media print {
+  .print-only {
+    display: block;
+  }
+}
