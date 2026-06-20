@@ -277,6 +277,8 @@ export default function InstructorView() {
         {!isPrint && editingAvail && data.week ? (
           <AvailabilityEditor
             instructorId={data.instructor.id}
+            instructorName={data.instructor.name}
+            instructorSlug={data.instructor.slug}
             weekNumber={data.week.week_number}
             days={days}
             lessonKeys={lessonKeys}

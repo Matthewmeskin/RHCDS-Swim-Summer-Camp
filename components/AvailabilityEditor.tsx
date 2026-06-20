@@ -16,6 +16,8 @@ function k(date: string, time: string) {
  */
 export default function AvailabilityEditor({
   instructorId,
+  instructorName,
+  instructorSlug,
   weekNumber,
   days,
   lessonKeys,
@@ -24,6 +26,8 @@ export default function AvailabilityEditor({
   onClose,
 }: {
   instructorId: string;
+  instructorName?: string;
+  instructorSlug?: string | null;
   weekNumber: number;
   days: string[];
   lessonKeys: Set<string>;
@@ -53,6 +57,17 @@ export default function AvailabilityEditor({
         return { date, start: `${hhmm}:00` };
       });
       await saveInstructorAvailability(instructorId, weekNumber, offSlots);
+      // Fire-and-forget email notification to the aquatics office.
+      fetch("/api/notify-availability", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          instructor: instructorName,
+          slug: instructorSlug,
+          week: weekNumber,
+          offCount: off.size,
+        }),
+      }).catch(() => {});
       onSaved();
     } catch (e) {
       setError((e as Error).message ?? "Could not save");
