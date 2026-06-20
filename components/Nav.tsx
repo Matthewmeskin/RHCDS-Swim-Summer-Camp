@@ -22,7 +22,7 @@ export default function Nav({
         ) : null}
         <Link href="/" className="flex items-center gap-3">
           <Image
-            src="/logo.png"
+            src="/camp-logo.png"
             alt="Country Day Camp"
             width={48}
             height={48}

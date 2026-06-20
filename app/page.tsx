@@ -38,7 +38,7 @@ export default function LandingPage() {
             {/* Sunset hero band echoing the logo */}
             <div className="rounded-t-2xl bg-gradient-to-b from-brand-orange/15 via-brand-yellow/15 to-transparent px-8 pt-10 pb-6">
               <Image
-                src="/logo.png"
+                src="/camp-logo.png"
                 alt="Country Day Camp"
                 width={144}
                 height={144}

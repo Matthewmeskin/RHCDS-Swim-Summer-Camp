@@ -175,7 +175,7 @@ export default function InstructorView() {
         {/* Print header with logo */}
         {isPrint ? (
           <div className="mb-4 flex items-center gap-3">
-            <Image src="/logo.png" alt="Country Day Camp" width={48} height={48} />
+            <Image src="/camp-logo.png" alt="Country Day Camp" width={48} height={48} />
             <span className="font-display text-2xl">Country Day Camp · Swim Portal</span>
           </div>
         ) : null}

@@ -6,8 +6,8 @@ export const metadata: Metadata = {
   description:
     "Swim lesson schedules for Rolling Hills Country Day School Summer Camp instructors.",
   icons: {
-    icon: "/logo.png",
-    apple: "/logo.png",
+    icon: "/camp-logo.png",
+    apple: "/camp-logo.png",
   },
 };
 
