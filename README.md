@@ -67,6 +67,24 @@ npm run dev                       # http://localhost:3000
 
 ---
 
+## Admin login
+
+The `/admin` section is protected by **Supabase Auth** (email + password). The
+public instructor pages stay open (no login). Row-Level Security enforces this:
+anyone can **read** (so instructor links work), but **writes** — imports, the
+schedule builder, edits — require a logged-in admin.
+
+- Sign in at **`/admin/login`**. Signed-out visits to any `/admin/*` page
+  redirect there.
+- Add or manage admin users in the Supabase dashboard: **Authentication →
+  Users** (use "Add user" with a password and auto-confirm). Rotate or reset
+  passwords there too.
+
+Because writes now require auth, **`npm run seed` needs the service-role key**
+(`SUPABASE_SERVICE_ROLE_KEY`) to bypass RLS — the anon key can no longer write.
+The one-paste `supabase/setup.sql` still works (the SQL editor runs as an
+elevated role).
+
 ## Database setup
 
 The full schema lives in [`supabase/schema.sql`](supabase/schema.sql). It is
@@ -147,20 +165,25 @@ instructor's week.
 
 ### Schedule Builder — `/admin/build`
 
-An in-app alternative to building the weekly schedule in Google Sheets, with
-instructor-consistency suggestions.
+An in-app alternative to building the schedule in Google Sheets, with
+instructor-consistency suggestions. Shows the **whole summer (all weeks) at
+once** for one instructor.
 
-- Pick the target **week** (set its start date the first time).
-- **Copy last week** replicates the previous week's pairings day-for-day into
-  the new week, so kids keep the same instructor by default — then you adjust.
-- Pick an instructor and tap **+ add** on any day/slot to assign a kid. The
-  picker surfaces consistency hints: **↩ Yours** (you taught them most recently),
-  **last: <name>** (their previous instructor), level badge, special-needs flag,
-  and how many slots they're already in this week.
-- Grey cells are slots that instructor marked unavailable (you can still place a
+- Pick an **instructor** → see every week (Week 1 … Week 8) stacked.
+- Tap **+** on any day/slot to assign a kid. The picker ranks suggestions with
+  reason chips: **⭐ Requested** (a parent named this instructor in the kid's
+  goals/notes), **↩ Yours** (already with this instructor another week),
+  **👫 sib** (a sibling is with this instructor), level badge, special-needs
+  flag, and how many slots they're in across the season.
+- **↓ Copy to later weeks** replicates an instructor's week into every later
+  week (day-for-day), so kids keep the same instructor all summer — then adjust.
+- Grey cells are slots the instructor marked unavailable (you can still place a
   kid there if needed).
-- **Save** replaces that week's schedule. (CSV import still works as a bulk
+- **Save all weeks** writes the whole season. (CSV import still works as a bulk
   alternative.)
+
+> Weeks 1–8 run as consecutive 5-day blocks (Week 8 ends Aug 14). Week dates
+> live in the `weeks` table.
 
 ### Student notes & parent preferences
 

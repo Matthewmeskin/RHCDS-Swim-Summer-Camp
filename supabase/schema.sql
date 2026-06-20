@@ -83,10 +83,10 @@ create index if not exists availability_instructor_idx on instructor_availabilit
 -- ---------------------------------------------------------------------------
 -- Row Level Security
 -- ---------------------------------------------------------------------------
--- v1 has NO authentication. The app talks to Postgres exclusively through the
--- public anon key, so we enable RLS and grant the anon (and authenticated)
--- roles full access. This is an intentional v1 trade-off: anyone with the
--- site URL can read and import. Lock this down when auth is added in v2.
+-- The instructor portal has NO login, so reads are public (anon). All WRITES
+-- require an authenticated (logged-in admin) session — see the admin login.
+-- Note: student goals/notes are readable by anon so instructor pages work;
+-- that's an intentional trade-off until instructor auth is added.
 
 alter table instructors enable row level security;
 alter table students enable row level security;
@@ -104,9 +104,17 @@ begin
   ]
   loop
     execute format('drop policy if exists %I on %I;', 'public_all_' || t, t);
+    execute format('drop policy if exists %I on %I;', 'read_' || t, t);
+    execute format('drop policy if exists %I on %I;', 'write_' || t, t);
+    -- Public read.
     execute format(
-      'create policy %I on %I for all to anon, authenticated using (true) with check (true);',
-      'public_all_' || t, t
+      'create policy %I on %I for select to anon, authenticated using (true);',
+      'read_' || t, t
+    );
+    -- Writes only for logged-in admins.
+    execute format(
+      'create policy %I on %I for all to authenticated using (true) with check (true);',
+      'write_' || t, t
     );
   end loop;
 end $$;

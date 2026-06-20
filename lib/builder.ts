@@ -77,6 +77,10 @@ function escapeRe(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+export function getWeekDays(week: Week | null): string[] {
+  return weekDays(week);
+}
+
 function weekDays(week: Week | null): string[] {
   if (!week?.start_date || !week?.end_date) return [];
   const out: string[] = [];
@@ -280,6 +284,141 @@ export async function carryForward(
     (out[k] ||= []).push(s.student_id);
   }
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// Whole-season builder (all weeks at once)
+// ---------------------------------------------------------------------------
+
+export interface AllBuilderData {
+  weeks: Week[];
+  instructors: Instructor[];
+  students: Student[];
+  /** flat: cellKey (instructor__date__hhmm) -> studentIds, across all weeks. */
+  assignments: Record<string, string[]>;
+  offCells: Set<string>;
+  requestedByStudent: Record<string, RequestedInstructor>;
+  /** ISO date -> week_number. */
+  dateToWeek: Record<string, number>;
+}
+
+export async function fetchAllBuilderData(): Promise<AllBuilderData> {
+  const db = requireSupabase();
+  const [instructorsAll, students, weeksRes] = await Promise.all([
+    fetchInstructors(),
+    fetchAllStudents(),
+    db.from("weeks").select("*").order("week_number", { ascending: true }),
+  ]);
+  const instructors = instructorsAll.filter((i) => i.role !== "guard");
+  const weeks = (weeksRes.data ?? []) as Week[];
+
+  const dateToWeek: Record<string, number> = {};
+  for (const w of weeks) {
+    for (const d of weekDays(w)) dateToWeek[d] = w.week_number;
+  }
+
+  const assignments: Record<string, string[]> = {};
+  const { data: slots } = await db
+    .from("schedule_slots")
+    .select("instructor_id, student_id, lesson_date, start_time");
+  for (const s of slots ?? []) {
+    if (!s.instructor_id || !s.student_id) continue;
+    const k = cellKey(s.instructor_id, s.lesson_date, s.start_time);
+    (assignments[k] ||= []).push(s.student_id);
+  }
+
+  const offCells = new Set<string>();
+  const { data: avail } = await db
+    .from("instructor_availability")
+    .select("instructor_id, lesson_date, start_time, is_available");
+  for (const a of (avail ?? []) as InstructorAvailability[]) {
+    if (!a.is_available && a.instructor_id) {
+      offCells.add(cellKey(a.instructor_id, a.lesson_date, a.start_time));
+    }
+  }
+
+  const requestedByStudent: Record<string, RequestedInstructor> = {};
+  for (const s of students) {
+    const req = detectRequestedInstructor(
+      `${s.goals ?? ""} ${s.parent_notes ?? ""}`,
+      instructors
+    );
+    if (req) requestedByStudent[s.id] = req;
+  }
+
+  return { weeks, instructors, students, assignments, offCells, requestedByStudent, dateToWeek };
+}
+
+/** Replaces all listed weeks' lesson slots with the in-memory assignments. */
+export async function saveAllWeeks(
+  assignments: Record<string, string[]>,
+  dateToWeek: Record<string, number>,
+  weekNumbers: number[]
+): Promise<number> {
+  const db = requireSupabase();
+  const rows: Record<string, unknown>[] = [];
+  for (const [k, studentIds] of Object.entries(assignments)) {
+    const [instructorId, date, hhmm] = k.split("__");
+    const wk = dateToWeek[date];
+    if (wk == null) continue;
+    const end = slotEnd[hhmm];
+    for (const studentId of studentIds) {
+      rows.push({
+        instructor_id: instructorId,
+        student_id: studentId,
+        student_name_raw: null,
+        lesson_date: date,
+        start_time: `${hhmm}:00`,
+        end_time: end,
+        week_number: wk,
+      });
+    }
+  }
+
+  const del = await db.from("schedule_slots").delete().in("week_number", weekNumbers);
+  if (del.error) throw del.error;
+  if (rows.length) {
+    const { error } = await db.from("schedule_slots").insert(rows);
+    if (error) throw error;
+  }
+  return rows.length;
+}
+
+/**
+ * Copies one instructor's assignments from a source week into every later week
+ * (mapped day-for-day), for season-long consistency. Pure / in-memory.
+ */
+export function copyInstructorWeekToLater(
+  assignments: Record<string, string[]>,
+  instructorId: string,
+  sourceWeek: Week,
+  weeks: Week[]
+): Record<string, string[]> {
+  const next = { ...assignments };
+  const srcDays = weekDays(sourceWeek);
+  const targets = weeks.filter((w) => w.week_number > sourceWeek.week_number);
+
+  for (const tw of targets) {
+    const tgtDays = weekDays(tw);
+    // Clear this instructor's cells in the target week first.
+    for (const d of tgtDays) {
+      for (const slot of BUILDER_SLOTS) {
+        delete next[cellKey(instructorId, d, slot.start)];
+      }
+    }
+    // Copy source week cells into the matching target weekday.
+    srcDays.forEach((sd, idx) => {
+      const td = tgtDays[idx];
+      if (!td) return;
+      for (const slot of BUILDER_SLOTS) {
+        const srcVal = assignments[cellKey(instructorId, sd, slot.start)];
+        if (srcVal && srcVal.length) {
+          next[cellKey(instructorId, td, slot.start)] = [...srcVal];
+        }
+      }
+    });
+  }
+  return next;
 }
 
 /** The most recent week (< given) that has any lesson slots. */
