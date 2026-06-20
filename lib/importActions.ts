@@ -2,6 +2,7 @@ import { requireSupabase } from "./supabaseClient";
 import type { ParsedStudent } from "./parseStudents";
 import type { ParseScheduleResult } from "./parseSchedule";
 import type { ParsedPreference } from "./parsePreferences";
+import type { ParsedEnrollment } from "./parseEnrollment";
 import { matchStudent, type MatchableStudent } from "./matchStudent";
 import { detectRequestedInstructor } from "./builder";
 import { detectSpecialNeeds } from "./specialNeeds";
@@ -246,6 +247,59 @@ export async function importPreferences(
     matchedInstructors,
     unmatchedStudents: Array.from(new Set(unmatchedStudents)),
     unmatchedInstructors: Array.from(new Set(unmatchedInstructors)),
+  };
+}
+
+export interface EnrollmentImportResult {
+  rowsWritten: number;
+  studentsMatched: number;
+  unmatchedStudents: string[];
+}
+
+/** Applies an enrollment CSV: which kids attend which weeks, and how many lessons. */
+export async function importEnrollment(
+  rows: ParsedEnrollment[]
+): Promise<EnrollmentImportResult> {
+  const db = requireSupabase();
+  const [{ data: studRows, error: sErr }, { data: weekRows, error: wErr }] =
+    await Promise.all([
+      db.from("students").select("id, first_name, last_name"),
+      db.from("weeks").select("week_number"),
+    ]);
+  if (sErr) throw sErr;
+  if (wErr) throw wErr;
+
+  const matchable: MatchableStudent[] = (studRows ?? []) as MatchableStudent[];
+  const allWeeks = (weekRows ?? []).map((w: { week_number: number }) => w.week_number);
+
+  const upserts: { student_id: string; week_number: number; lessons: number }[] = [];
+  const unmatched: string[] = [];
+  const matchedIds = new Set<string>();
+
+  for (const row of rows) {
+    const { student } = matchStudent(`${row.first_name} ${row.last_name}`, matchable);
+    if (!student) {
+      unmatched.push(`${row.first_name} ${row.last_name}`.trim());
+      continue;
+    }
+    matchedIds.add(student.id);
+    const weeks = row.week != null ? [row.week] : allWeeks;
+    for (const wk of weeks) {
+      upserts.push({ student_id: student.id, week_number: wk, lessons: row.lessons });
+    }
+  }
+
+  if (upserts.length) {
+    const { error } = await db
+      .from("student_enrollment")
+      .upsert(upserts, { onConflict: "student_id,week_number" });
+    if (error) throw error;
+  }
+
+  return {
+    rowsWritten: upserts.length,
+    studentsMatched: matchedIds.size,
+    unmatchedStudents: Array.from(new Set(unmatched)),
   };
 }
 

@@ -96,6 +96,14 @@ create table if not exists availability_submissions (
   primary key (instructor_id, week_number)
 );
 
+-- Enrollment: who attends which week and how many lessons (powers Auto-fill).
+create table if not exists student_enrollment (
+  student_id uuid references students(id) on delete cascade,
+  week_number int,
+  lessons int default 1,
+  primary key (student_id, week_number)
+);
+
 -- Helpful query indexes.
 create index if not exists schedule_slots_week_idx on schedule_slots (week_number);
 create index if not exists schedule_slots_instructor_idx on schedule_slots (instructor_id);
@@ -160,3 +168,12 @@ drop policy if exists all_instructor_notes on instructor_notes;
 create policy all_instructor_notes
   on instructor_notes for all to anon, authenticated
   using (true) with check (true);
+
+-- Enrollment: public read (builder), admin write.
+alter table student_enrollment enable row level security;
+drop policy if exists read_student_enrollment on student_enrollment;
+create policy read_student_enrollment
+  on student_enrollment for select to anon, authenticated using (true);
+drop policy if exists write_student_enrollment on student_enrollment;
+create policy write_student_enrollment
+  on student_enrollment for all to authenticated using (true) with check (true);

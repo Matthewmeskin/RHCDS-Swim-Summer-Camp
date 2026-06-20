@@ -60,10 +60,20 @@ export function autoAssignWeek(params: {
   requestedByStudent: Record<string, { instructorId: string }>;
   priorByStudent: Record<string, string>;
   config: AutoConfig;
+  /** When set, only these kids are placed, each with their own lesson count. */
+  lessonsByStudent?: Record<string, number>;
 }): AutoResult {
-  const { days, instructors, students, offCells, requestedByStudent, priorByStudent, config } = params;
+  const { days, instructors, offCells, requestedByStudent, priorByStudent, config, lessonsByStudent } = params;
   const maxPerSlot = Math.max(1, config.maxPerSlot);
-  const perKid = Math.max(1, config.lessonsPerKid);
+  const defaultPerKid = Math.max(1, config.lessonsPerKid);
+  // When enrollment is provided, only place enrolled kids (with their counts).
+  const students = lessonsByStudent
+    ? params.students.filter((s) => lessonsByStudent[s.id] != null)
+    : params.students;
+  const lessonsFor = (sid: string) =>
+    lessonsByStudent && lessonsByStudent[sid] != null
+      ? Math.max(1, lessonsByStudent[sid])
+      : defaultPerKid;
 
   const next: Record<string, string[]> = {};
   for (const [k, v] of Object.entries(params.assignments)) next[k] = [...v];
@@ -141,6 +151,7 @@ export function autoAssignWeek(params: {
   const report: AutoReport = { placed: 0, partial: 0, unplaced: [] };
 
   for (const kid of ordered) {
+    const perKid = lessonsFor(kid.id);
     let need = perKid - (kidCount.get(kid.id) ?? 0);
     if (need <= 0) {
       report.placed++;

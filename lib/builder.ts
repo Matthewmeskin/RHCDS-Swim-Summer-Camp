@@ -300,6 +300,8 @@ export interface AllBuilderData {
   requestedByStudent: Record<string, RequestedInstructor>;
   /** ISO date -> week_number. */
   dateToWeek: Record<string, number>;
+  /** week_number -> (studentId -> lessons enrolled). Empty if none imported. */
+  enrollment: Record<number, Record<string, number>>;
 }
 
 export async function fetchAllBuilderData(): Promise<AllBuilderData> {
@@ -346,7 +348,17 @@ export async function fetchAllBuilderData(): Promise<AllBuilderData> {
     if (req) requestedByStudent[s.id] = req;
   }
 
-  return { weeks, instructors, students, assignments, offCells, requestedByStudent, dateToWeek };
+  // Enrollment (who attends which week + how many lessons), if imported.
+  const enrollment: Record<number, Record<string, number>> = {};
+  const { data: enrollRows } = await db
+    .from("student_enrollment")
+    .select("student_id, week_number, lessons");
+  for (const e of enrollRows ?? []) {
+    if (!e.student_id || e.week_number == null) continue;
+    (enrollment[e.week_number] ||= {})[e.student_id] = e.lessons ?? 1;
+  }
+
+  return { weeks, instructors, students, assignments, offCells, requestedByStudent, dateToWeek, enrollment };
 }
 
 /** Replaces all listed weeks' lesson slots with the in-memory assignments. */

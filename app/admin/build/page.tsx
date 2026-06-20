@@ -47,7 +47,12 @@ export default function ScheduleBuilderPage() {
   const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(null);
   const [showAuto, setShowAuto] = useState(false);
 
-  function runAuto(opts: { scope: "current" | "all"; config: AutoConfig; targetWeek: number }) {
+  function runAuto(opts: {
+    scope: "current" | "all";
+    config: AutoConfig;
+    targetWeek: number;
+    useEnrollment: boolean;
+  }) {
     if (!data) return;
     if (
       opts.config.mode === "rebuild" &&
@@ -71,6 +76,8 @@ export default function ScheduleBuilderPage() {
       const weekObj = data.weeks.find((w) => w.week_number === wk);
       if (!weekObj) continue;
       const prior = computePrior(working, data.dateToWeek, wk);
+      const lessonsByStudent =
+        opts.useEnrollment && data.enrollment[wk] ? data.enrollment[wk] : undefined;
       const res = autoAssignWeek({
         days: getWeekDays(weekObj),
         instructors: teaching,
@@ -80,6 +87,7 @@ export default function ScheduleBuilderPage() {
         requestedByStudent: data.requestedByStudent,
         priorByStudent: prior,
         config: opts.config,
+        lessonsByStudent,
       });
       working = res.assignments;
       placed += res.report.placed;
@@ -420,7 +428,12 @@ export default function ScheduleBuilderPage() {
       ) : null}
 
       {showAuto && data ? (
-        <AutoModal weeks={data.weeks} onClose={() => setShowAuto(false)} onRun={runAuto} />
+        <AutoModal
+          weeks={data.weeks}
+          hasEnrollment={Object.keys(data.enrollment).length > 0}
+          onClose={() => setShowAuto(false)}
+          onRun={runAuto}
+        />
       ) : null}
 
       {toast ? <Toast message={toast.msg} kind={toast.kind} onDismiss={() => setToast(null)} /> : null}
@@ -430,18 +443,26 @@ export default function ScheduleBuilderPage() {
 
 function AutoModal({
   weeks,
+  hasEnrollment,
   onClose,
   onRun,
 }: {
   weeks: { week_number: number; label: string | null }[];
+  hasEnrollment: boolean;
   onClose: () => void;
-  onRun: (opts: { scope: "current" | "all"; config: AutoConfig; targetWeek: number }) => void;
+  onRun: (opts: {
+    scope: "current" | "all";
+    config: AutoConfig;
+    targetWeek: number;
+    useEnrollment: boolean;
+  }) => void;
 }) {
   const [scope, setScope] = useState<"current" | "all">("current");
   const [targetWeek, setTargetWeek] = useState(weeks[0]?.week_number ?? 1);
   const [lessonsPerKid, setLessonsPerKid] = useState(1);
   const [maxPerSlot, setMaxPerSlot] = useState(2);
   const [mode, setMode] = useState<"fill" | "rebuild">("fill");
+  const [useEnrollment, setUseEnrollment] = useState(hasEnrollment);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
@@ -474,9 +495,16 @@ function AutoModal({
             </label>
           ) : null}
 
-          <label className="flex items-center justify-between">
-            <span className="font-semibold">Lessons per kid</span>
-            <input type="number" min={1} max={5} value={lessonsPerKid} onChange={(e) => setLessonsPerKid(parseInt(e.target.value, 10) || 1)} className="w-20 rounded-full border-2 border-brand-green bg-white px-3 py-1" />
+          {hasEnrollment ? (
+            <label className="flex items-center gap-2 rounded-xl bg-brand-sand/60 px-3 py-2 font-semibold">
+              <input type="checkbox" checked={useEnrollment} onChange={(e) => setUseEnrollment(e.target.checked)} />
+              Use enrollment (only enrolled kids, their lesson counts)
+            </label>
+          ) : null}
+
+          <label className={`flex items-center justify-between ${useEnrollment ? "opacity-40" : ""}`}>
+            <span className="font-semibold">Lessons per kid {useEnrollment ? "(from enrollment)" : ""}</span>
+            <input type="number" min={1} max={5} disabled={useEnrollment} value={lessonsPerKid} onChange={(e) => setLessonsPerKid(parseInt(e.target.value, 10) || 1)} className="w-20 rounded-full border-2 border-brand-green bg-white px-3 py-1 disabled:bg-gray-100" />
           </label>
           <label className="flex items-center justify-between">
             <span className="font-semibold">Max kids per slot</span>
@@ -495,7 +523,7 @@ function AutoModal({
         </div>
 
         <div className="mt-4 flex gap-2">
-          <button onClick={() => onRun({ scope, config: { lessonsPerKid, maxPerSlot, mode }, targetWeek })} className="camp-btn flex-1">
+          <button onClick={() => onRun({ scope, config: { lessonsPerKid, maxPerSlot, mode }, targetWeek, useEnrollment })} className="camp-btn flex-1">
             Generate draft
           </button>
           <button onClick={onClose} className="camp-btn-ghost">Cancel</button>

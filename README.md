@@ -181,7 +181,9 @@ once** for one instructor.
   (requested instructor → consistency → siblings → least-loaded), never saves on
   its own, and reports how many kids it placed / couldn't place. Tune *lessons
   per kid*, *max kids per slot*, and *fill gaps vs rebuild*, then review the
-  health panel and Save.
+  health panel and Save. If **enrollment** has been imported, Auto-fill uses it
+  (only enrolled kids, each with their own lesson count) instead of a uniform
+  lessons-per-kid.
 - **↓ Copy to later weeks** replicates an instructor's week into every later
   week (day-for-day), so kids keep the same instructor all summer — then adjust.
 - Grey cells are slots the instructor marked unavailable (you can still place a
@@ -230,6 +232,12 @@ instructor (matched to the roster — "Maya R." → Maya Rosales), and notes. It
 matches each row to an existing kid and writes `parent_notes` +
 `preferred_instructor_id`; unmatched kids/instructors are reported. Requested
 instructors then surface as **⭐ Requested** chips in the schedule builder.
+
+**Import Enrollment — `/admin/import/enrollment`** — a flexible CSV telling
+Auto-fill **who attends each week and how many lessons**. Auto-detected columns:
+a name, an optional week (1–8, or "Week 3"; omit for all weeks), and lessons per
+week (default 1). Stored in `student_enrollment`; when present, the builder's
+Auto-fill places only enrolled kids with their own lesson counts.
 
 ---
 
