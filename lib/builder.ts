@@ -306,11 +306,22 @@ export interface AllBuilderData {
 
 export async function fetchAllBuilderData(): Promise<AllBuilderData> {
   const db = requireSupabase();
-  const [instructorsAll, students, weeksRes] = await Promise.all([
-    fetchInstructors(),
-    fetchAllStudents(),
-    db.from("weeks").select("*").order("week_number", { ascending: true }),
-  ]);
+  // One parallel wave for every independent read.
+  const [instructorsAll, students, weeksRes, slotsRes, availRes, enrollRes] =
+    await Promise.all([
+      fetchInstructors(),
+      fetchAllStudents(),
+      db.from("weeks").select("*").order("week_number", { ascending: true }),
+      db
+        .from("schedule_slots")
+        .select("instructor_id, student_id, lesson_date, start_time"),
+      db
+        .from("instructor_availability")
+        .select("instructor_id, lesson_date, start_time, is_available")
+        .eq("is_available", false),
+      db.from("student_enrollment").select("student_id, week_number, lessons"),
+    ]);
+
   const instructors = instructorsAll.filter((i) => i.role !== "guard");
   const weeks = (weeksRes.data ?? []) as Week[];
 
@@ -320,21 +331,15 @@ export async function fetchAllBuilderData(): Promise<AllBuilderData> {
   }
 
   const assignments: Record<string, string[]> = {};
-  const { data: slots } = await db
-    .from("schedule_slots")
-    .select("instructor_id, student_id, lesson_date, start_time");
-  for (const s of slots ?? []) {
+  for (const s of slotsRes.data ?? []) {
     if (!s.instructor_id || !s.student_id) continue;
     const k = cellKey(s.instructor_id, s.lesson_date, s.start_time);
     (assignments[k] ||= []).push(s.student_id);
   }
 
   const offCells = new Set<string>();
-  const { data: avail } = await db
-    .from("instructor_availability")
-    .select("instructor_id, lesson_date, start_time, is_available");
-  for (const a of (avail ?? []) as InstructorAvailability[]) {
-    if (!a.is_available && a.instructor_id) {
+  for (const a of (availRes.data ?? []) as InstructorAvailability[]) {
+    if (a.instructor_id) {
       offCells.add(cellKey(a.instructor_id, a.lesson_date, a.start_time));
     }
   }
@@ -348,12 +353,8 @@ export async function fetchAllBuilderData(): Promise<AllBuilderData> {
     if (req) requestedByStudent[s.id] = req;
   }
 
-  // Enrollment (who attends which week + how many lessons), if imported.
   const enrollment: Record<number, Record<string, number>> = {};
-  const { data: enrollRows } = await db
-    .from("student_enrollment")
-    .select("student_id, week_number, lessons");
-  for (const e of enrollRows ?? []) {
+  for (const e of enrollRes.data ?? []) {
     if (!e.student_id || e.week_number == null) continue;
     (enrollment[e.week_number] ||= {})[e.student_id] = e.lessons ?? 1;
   }

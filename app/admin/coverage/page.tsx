@@ -70,7 +70,12 @@ export default function CoveragePage() {
     return set;
   }, [slots]);
 
-  const unplacedThisWeek = students.filter((s) => !placedThisWeek.has(s.id));
+  const weekHasSchedule = placedThisWeek.size > 0;
+  // Disjoint groups: kids scheduled some other week but missing here, vs kids
+  // never scheduled anywhere (the latter is the real priority).
+  const missingFromWeek = students.filter(
+    (s) => !placedThisWeek.has(s.id) && placedEver.has(s.id)
+  );
   const neverPlaced = students.filter((s) => !placedEver.has(s.id));
 
   if (!isSupabaseConfigured) {
@@ -156,15 +161,31 @@ export default function CoveragePage() {
               <p className="mt-1 text-xs text-brand-text/50">Each cell shows kids · instructors working that slot.</p>
             </section>
 
-            <CoverList
-              title={`Not scheduled in Week ${week}`}
-              subtitle="Active kids with no lesson this week."
-              students={unplacedThisWeek}
-              tone="orange"
-            />
+            {!weekHasSchedule ? (
+              <div className="camp-card mt-6 p-4">
+                <p className="text-sm font-semibold text-brand-text">
+                  Week {week} hasn&apos;t been scheduled yet.
+                </p>
+                <p className="mt-1 text-sm text-brand-text/70">
+                  Build it in the{" "}
+                  <a href="/admin/build" className="font-bold text-brand-green underline">
+                    Schedule Builder
+                  </a>{" "}
+                  (try ✨ Auto-fill), then come back to check coverage.
+                </p>
+              </div>
+            ) : (
+              <CoverList
+                title={`Missing from Week ${week}`}
+                subtitle="Scheduled another week, but not this one."
+                students={missingFromWeek}
+                tone="orange"
+              />
+            )}
+
             <CoverList
               title="Never scheduled all summer"
-              subtitle="Active kids with no lesson in any week — likely need placing."
+              subtitle="Active kids with no lesson in any week — the priority to place."
               students={neverPlaced}
               tone="red"
             />

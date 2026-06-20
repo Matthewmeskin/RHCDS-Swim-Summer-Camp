@@ -181,46 +181,45 @@ export async function fetchInstructorWeek(
   weekNumber: number | null
 ): Promise<InstructorWeekData | null> {
   const db = requireSupabase();
-  const instructor = await fetchInstructorBySlug(slug);
+
+  // Wave 1: instructor + (default week, only if not provided) in parallel.
+  const [instructor, defaultWk] = await Promise.all([
+    fetchInstructorBySlug(slug),
+    weekNumber == null ? fetchDefaultWeekNumber() : Promise.resolve(null),
+  ]);
   if (!instructor) return null;
 
-  const wk =
-    weekNumber ?? (await fetchDefaultWeekNumber()) ?? null;
-
-  let week: Week | null = null;
-  if (wk != null) {
-    const { data } = await db
-      .from("weeks")
-      .select("*")
-      .eq("week_number", wk)
-      .maybeSingle();
-    week = (data as Week) ?? null;
+  const wk = weekNumber ?? defaultWk ?? null;
+  if (wk == null) {
+    return { instructor, week: null, slots: [], availability: [] };
   }
 
-  let slots: SlotWithStudent[] = [];
-  let availability: InstructorAvailability[] = [];
-
-  if (wk != null) {
-    const { data: slotData, error: slotErr } = await db
+  // Wave 2: week + slots + availability in parallel.
+  const [weekRes, slotRes, availRes] = await Promise.all([
+    db.from("weeks").select("*").eq("week_number", wk).maybeSingle(),
+    db
       .from("schedule_slots")
       .select("*, students(*)")
       .eq("instructor_id", instructor.id)
       .eq("week_number", wk)
       .order("lesson_date", { ascending: true })
-      .order("start_time", { ascending: true });
-    if (slotErr) throw slotErr;
-    slots = (slotData ?? []) as SlotWithStudent[];
-
-    const { data: availData, error: availErr } = await db
+      .order("start_time", { ascending: true }),
+    db
       .from("instructor_availability")
       .select("*")
       .eq("instructor_id", instructor.id)
-      .eq("week_number", wk);
-    if (availErr) throw availErr;
-    availability = (availData ?? []) as InstructorAvailability[];
-  }
+      .eq("week_number", wk),
+  ]);
 
-  return { instructor, week, slots, availability };
+  if (slotRes.error) throw slotRes.error;
+  if (availRes.error) throw availRes.error;
+
+  return {
+    instructor,
+    week: (weekRes.data as Week) ?? null,
+    slots: (slotRes.data ?? []) as SlotWithStudent[],
+    availability: (availRes.data ?? []) as InstructorAvailability[],
+  };
 }
 
 export interface AdminStats {

@@ -22,8 +22,8 @@ const config: Config = {
         },
       },
       fontFamily: {
-        display: ["Pacifico", "cursive"],
-        body: ["Nunito", "sans-serif"],
+        display: ["var(--font-pacifico)", "Pacifico", "cursive"],
+        body: ["var(--font-nunito)", "Nunito", "sans-serif"],
       },
       borderRadius: {
         "2xl": "1rem",
