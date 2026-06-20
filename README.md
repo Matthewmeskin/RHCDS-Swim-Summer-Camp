@@ -145,6 +145,35 @@ Each week after Week 1, go to **`/admin`** and upload two files.
 After importing, use the **Instructor QA** list on `/admin` to preview any
 instructor's week.
 
+### Schedule Builder — `/admin/build`
+
+An in-app alternative to building the weekly schedule in Google Sheets, with
+instructor-consistency suggestions.
+
+- Pick the target **week** (set its start date the first time).
+- **Copy last week** replicates the previous week's pairings day-for-day into
+  the new week, so kids keep the same instructor by default — then you adjust.
+- Pick an instructor and tap **+ add** on any day/slot to assign a kid. The
+  picker surfaces consistency hints: **↩ Yours** (you taught them most recently),
+  **last: <name>** (their previous instructor), level badge, special-needs flag,
+  and how many slots they're already in this week.
+- Grey cells are slots that instructor marked unavailable (you can still place a
+  kid there if needed).
+- **Save** replaces that week's schedule. (CSV import still works as a bulk
+  alternative.)
+
+### Student notes & parent preferences
+
+The `students` table stores three layers of context:
+
+- **goals** — parent-entered goals from the CampSite export (read-only import).
+- **parent_notes** — parent preferences / communication (e.g. a requested
+  instructor). Auto-populated if a future CampSite export includes a
+  `Parent Notes` / `Preferences` / `Instructor Preference` column.
+- **staff_notes** — internal aquatics-staff notes, not parent facing.
+
+Parent and staff notes appear in the student goals modal when present.
+
 ---
 
 ## Pages

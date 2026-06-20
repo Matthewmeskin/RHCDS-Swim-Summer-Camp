@@ -36,6 +36,10 @@ export async function importStudents(
     else inserted++;
   }
 
+  // Only manage parent_notes when the file actually carried a preferences
+  // column — otherwise we'd wipe notes added in-app on a routine re-import.
+  const hasParentNotes = parsed.some((s) => s.parent_notes);
+
   const rows = parsed.map((s) => ({
     first_name: s.first_name,
     last_name: s.last_name,
@@ -44,6 +48,7 @@ export async function importStudents(
     level: s.level,
     goals: s.goals,
     special_needs: s.special_needs,
+    ...(hasParentNotes ? { parent_notes: s.parent_notes } : {}),
   }));
 
   const errorMessages: string[] = [];

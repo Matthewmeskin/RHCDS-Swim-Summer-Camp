@@ -21,9 +21,16 @@ create table if not exists students (
   gender text,
   age int,
   level text check (level in ('Non-Swimmer', 'Beginner', 'Intermediate', 'Advanced')),
-  goals text,
-  special_needs boolean default false
+  goals text,             -- parent-entered goals from the CampSite export
+  special_needs boolean default false,
+  parent_notes text,      -- parent preferences / communication (e.g. requested instructor)
+  staff_notes text        -- internal aquatics-staff notes, not parent facing
 );
+
+-- Add the notes/preference columns to pre-existing installs (idempotent).
+alter table students add column if not exists parent_notes text;
+alter table students add column if not exists staff_notes text;
+alter table students add column if not exists preferred_instructor_id uuid references instructors(id);
 
 -- Upsert target for student import (first_name + last_name).
 create unique index if not exists students_name_unique

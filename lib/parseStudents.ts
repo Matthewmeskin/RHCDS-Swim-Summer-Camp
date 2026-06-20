@@ -15,6 +15,8 @@ export interface ParsedStudent {
   level: Level | null;
   goals: string;
   special_needs: boolean;
+  /** Optional — only present if the export includes a preferences/notes column. */
+  parent_notes: string | null;
 }
 
 export interface ParseStudentsResult {
@@ -75,6 +77,15 @@ export function parseStudents(csvText: string): ParseStudentsResult {
       warnings.push(`Row ${idx + 2} (${first_name} ${last_name}): unknown level "${levelRaw}"`);
     }
     const goals = pick(row, ["goals for lessons", "goals", "goals for lesson"]);
+    const parentNotes =
+      pick(row, [
+        "parent notes",
+        "parent preferences",
+        "preferences",
+        "instructor preference",
+        "instructor preferences",
+        "notes",
+      ]) || null;
 
     students.push({
       last_name,
@@ -83,7 +94,8 @@ export function parseStudents(csvText: string): ParseStudentsResult {
       age: Number.isNaN(age as number) ? null : age,
       level,
       goals,
-      special_needs: detectSpecialNeeds(goals),
+      special_needs: detectSpecialNeeds(`${goals} ${parentNotes ?? ""}`),
+      parent_notes: parentNotes,
     });
   });
 

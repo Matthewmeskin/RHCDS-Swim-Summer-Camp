@@ -86,6 +86,28 @@ export default function StudentModal({
           )}
         </div>
 
+        {student.parent_notes && student.parent_notes.trim() ? (
+          <div className="mt-4 rounded-xl border border-brand-green/15 bg-brand-sand/60 p-3">
+            <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-brand-green">
+              Parent notes
+            </h3>
+            <p className="text-sm leading-relaxed text-brand-text">
+              {student.parent_notes}
+            </p>
+          </div>
+        ) : null}
+
+        {student.staff_notes && student.staff_notes.trim() ? (
+          <div className="mt-3 rounded-xl border border-brand-green/15 bg-white p-3">
+            <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-brand-green">
+              Staff notes
+            </h3>
+            <p className="text-sm leading-relaxed text-brand-text">
+              {student.staff_notes}
+            </p>
+          </div>
+        ) : null}
+
         <button onClick={onClose} className="camp-btn mt-6 w-full">
           Close
         </button>

@@ -19,6 +19,9 @@ export interface Student {
   level: Level | null;
   goals: string | null;
   special_needs: boolean;
+  parent_notes: string | null;
+  staff_notes: string | null;
+  preferred_instructor_id: string | null;
 }
 
 export interface Week {
