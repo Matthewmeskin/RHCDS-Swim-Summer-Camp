@@ -308,7 +308,11 @@ export default function InstructorView() {
         ) : null}
       </div>
 
-      <StudentModal student={selected} onClose={() => setSelected(null)} />
+      <StudentModal
+        student={selected}
+        onClose={() => setSelected(null)}
+        instructorId={data.instructor.id}
+      />
     </main>
   );
 }

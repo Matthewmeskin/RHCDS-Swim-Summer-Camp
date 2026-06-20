@@ -5,6 +5,7 @@ import type {
   Week,
   ScheduleSlot,
   InstructorAvailability,
+  Role,
 } from "./types";
 
 export interface SlotWithStudent extends ScheduleSlot {
@@ -18,7 +19,20 @@ export interface InstructorWeekData {
   availability: InstructorAvailability[];
 }
 
+/** Active instructors only (public picker, builder, links). */
 export async function fetchInstructors(): Promise<Instructor[]> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("instructors")
+    .select("*")
+    .eq("active", true)
+    .order("name", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as Instructor[];
+}
+
+/** Every instructor incl. inactive (roster management). */
+export async function fetchInstructorsAll(): Promise<Instructor[]> {
   const db = requireSupabase();
   const { data, error } = await db
     .from("instructors")
@@ -26,6 +40,97 @@ export async function fetchInstructors(): Promise<Instructor[]> {
     .order("name", { ascending: true });
   if (error) throw error;
   return (data ?? []) as Instructor[];
+}
+
+function slugify(name: string): string {
+  return name
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/(^-|-$)/g, "");
+}
+
+export async function saveInstructor(rec: {
+  id?: string;
+  name: string;
+  role: Role;
+  email: string | null;
+  slug?: string | null;
+  active?: boolean;
+}): Promise<void> {
+  const db = requireSupabase();
+  const payload = {
+    name: rec.name,
+    role: rec.role,
+    email: rec.email,
+    slug: rec.slug || slugify(rec.name),
+    active: rec.active ?? true,
+  };
+  if (rec.id) {
+    const { error } = await db.from("instructors").update(payload).eq("id", rec.id);
+    if (error) throw error;
+  } else {
+    const { error } = await db.from("instructors").insert(payload);
+    if (error) throw error;
+  }
+}
+
+export async function saveStudent(rec: Partial<Student> & { first_name: string; last_name: string }): Promise<void> {
+  const db = requireSupabase();
+  const payload = {
+    first_name: rec.first_name,
+    last_name: rec.last_name,
+    gender: rec.gender ?? null,
+    age: rec.age ?? null,
+    level: rec.level ?? null,
+    goals: rec.goals ?? null,
+    special_needs: rec.special_needs ?? false,
+    parent_notes: rec.parent_notes ?? null,
+    staff_notes: rec.staff_notes ?? null,
+    active: rec.active ?? true,
+  };
+  if (rec.id) {
+    const { error } = await db.from("students").update(payload).eq("id", rec.id);
+    if (error) throw error;
+  } else {
+    const { error } = await db.from("students").insert(payload);
+    if (error) throw error;
+  }
+}
+
+export interface InstructorNoteRow {
+  id: string;
+  note: string | null;
+  updated_at: string;
+  instructor_id: string;
+  instructors: { name: string } | null;
+}
+
+export async function fetchInstructorNotes(studentId: string): Promise<InstructorNoteRow[]> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("instructor_notes")
+    .select("id, note, updated_at, instructor_id, instructors(name)")
+    .eq("student_id", studentId)
+    .order("updated_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as InstructorNoteRow[];
+}
+
+export async function saveInstructorNote(
+  studentId: string,
+  instructorId: string,
+  note: string
+): Promise<void> {
+  const db = requireSupabase();
+  const { error } = await db
+    .from("instructor_notes")
+    .upsert(
+      { student_id: studentId, instructor_id: instructorId, note, updated_at: new Date().toISOString() },
+      { onConflict: "student_id,instructor_id" }
+    );
+  if (error) throw error;
 }
 
 export async function fetchWeeks(): Promise<Week[]> {
@@ -217,6 +322,23 @@ export async function fetchAvailabilitySubmissions(
     if (r.instructor_id) out[r.instructor_id] = r.updated_at as string;
   }
   return out;
+}
+
+export interface SlotLite {
+  student_id: string | null;
+  instructor_id: string | null;
+  lesson_date: string;
+  start_time: string;
+  week_number: number | null;
+}
+
+export async function fetchAllScheduleSlots(): Promise<SlotLite[]> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("schedule_slots")
+    .select("student_id, instructor_id, lesson_date, start_time, week_number");
+  if (error) throw error;
+  return (data ?? []) as SlotLite[];
 }
 
 export async function fetchAllStudents(): Promise<Student[]> {

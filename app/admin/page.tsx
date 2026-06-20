@@ -140,6 +140,20 @@ export default function AdminDashboard() {
           </div>
         </section>
 
+        {/* Roster + Coverage */}
+        <div className="mt-4 grid gap-4 sm:grid-cols-2">
+          <Link href="/admin/coverage" className="camp-card block p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
+            <div className="text-3xl">📊</div>
+            <h2 className="mt-2 font-display text-xl text-brand-green">Coverage</h2>
+            <p className="text-sm text-brand-text/70">Empty slots & kids not scheduled.</p>
+          </Link>
+          <Link href="/admin/roster" className="camp-card block p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
+            <div className="text-3xl">👥</div>
+            <h2 className="mt-2 font-display text-xl text-brand-green">Roster</h2>
+            <p className="text-sm text-brand-text/70">Add / edit kids & instructors.</p>
+          </Link>
+        </div>
+
         {/* Instructor links + availability */}
         <Link
           href="/admin/instructors"

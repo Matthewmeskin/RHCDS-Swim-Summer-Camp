@@ -185,6 +185,25 @@ once** for one instructor.
 > Weeks 1–8 run as consecutive 5-day blocks (Week 8 ends Aug 14). Week dates
 > live in the `weeks` table.
 
+### Roster — `/admin/roster`
+
+Add, edit, and activate/deactivate **instructors** and **kids** in-app (late
+registrations, name fixes) without re-importing a CSV. Deactivated people are
+hidden from the picker/builder but keep their history.
+
+### Coverage — `/admin/coverage`
+
+Per-week health view: a **kids · instructors per slot** grid (empty slots
+flagged), plus **kids not scheduled this week** and **kids never scheduled all
+summer**, so nobody slips through.
+
+### Instructor progress notes
+
+From their own link, an instructor can add a note per kid (in the student
+modal). Notes from previous instructors show too, so progress carries week to
+week. Stored in `instructor_notes` (writable from the login-free instructor
+link, like availability).
+
 ### Student notes & parent preferences
 
 The `students` table stores three layers of context:

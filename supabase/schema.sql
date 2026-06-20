@@ -24,13 +24,26 @@ create table if not exists students (
   goals text,             -- parent-entered goals from the CampSite export
   special_needs boolean default false,
   parent_notes text,      -- parent preferences / communication (e.g. requested instructor)
-  staff_notes text        -- internal aquatics-staff notes, not parent facing
+  staff_notes text,       -- internal aquatics-staff notes, not parent facing
+  active boolean default true
 );
 
--- Add the notes/preference columns to pre-existing installs (idempotent).
+-- Add later columns to pre-existing installs (idempotent).
 alter table students add column if not exists parent_notes text;
 alter table students add column if not exists staff_notes text;
 alter table students add column if not exists preferred_instructor_id uuid references instructors(id);
+alter table students add column if not exists active boolean default true;
+alter table instructors add column if not exists active boolean default true;
+
+-- Instructor progress notes (one editable note per instructor + kid).
+create table if not exists instructor_notes (
+  id uuid primary key default gen_random_uuid(),
+  student_id uuid references students(id) on delete cascade,
+  instructor_id uuid references instructors(id),
+  note text,
+  updated_at timestamptz default now(),
+  unique (student_id, instructor_id)
+);
 
 -- Upsert target for student import (first_name + last_name).
 create unique index if not exists students_name_unique
@@ -139,4 +152,11 @@ alter table availability_submissions enable row level security;
 drop policy if exists all_availability_submissions on availability_submissions;
 create policy all_availability_submissions
   on availability_submissions for all to anon, authenticated
+  using (true) with check (true);
+
+-- Instructor progress notes: instructors write from their link, all can read.
+alter table instructor_notes enable row level security;
+drop policy if exists all_instructor_notes on instructor_notes;
+create policy all_instructor_notes
+  on instructor_notes for all to anon, authenticated
   using (true) with check (true);

@@ -1,17 +1,31 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import type { Student } from "@/lib/types";
 import LevelBadge from "./LevelBadge";
 import SpecialNeedsBanner from "./SpecialNeedsBanner";
+import { formatRelative } from "@/lib/format";
+import {
+  fetchInstructorNotes,
+  saveInstructorNote,
+  type InstructorNoteRow,
+} from "@/lib/data";
 
 export default function StudentModal({
   student,
   onClose,
+  instructorId,
 }: {
   student: Student | null;
   onClose: () => void;
+  /** When set, this instructor can add/edit their own progress note. */
+  instructorId?: string;
 }) {
+  const [notes, setNotes] = useState<InstructorNoteRow[]>([]);
+  const [myNote, setMyNote] = useState("");
+  const [savingNote, setSavingNote] = useState(false);
+  const [noteSaved, setNoteSaved] = useState(false);
+
   useEffect(() => {
     if (!student) return;
     const onKey = (e: KeyboardEvent) => {
@@ -24,6 +38,31 @@ export default function StudentModal({
       document.body.style.overflow = "";
     };
   }, [student, onClose]);
+
+  useEffect(() => {
+    setNoteSaved(false);
+    if (!student) return;
+    fetchInstructorNotes(student.id)
+      .then((rows) => {
+        setNotes(rows);
+        const mine = rows.find((r) => r.instructor_id === instructorId);
+        setMyNote(mine?.note ?? "");
+      })
+      .catch(() => setNotes([]));
+  }, [student, instructorId]);
+
+  async function saveNote() {
+    if (!student || !instructorId) return;
+    setSavingNote(true);
+    try {
+      await saveInstructorNote(student.id, instructorId, myNote.trim());
+      setNoteSaved(true);
+      const rows = await fetchInstructorNotes(student.id);
+      setNotes(rows);
+    } finally {
+      setSavingNote(false);
+    }
+  }
 
   if (!student) return null;
 
@@ -107,6 +146,62 @@ export default function StudentModal({
             </p>
           </div>
         ) : null}
+
+        {/* Instructor progress notes */}
+        <div className="mt-4">
+          <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-brand-green">
+            Progress notes
+          </h3>
+
+          {instructorId ? (
+            <div className="rounded-xl border border-brand-green/15 bg-white p-3">
+              <label className="text-xs font-semibold text-brand-text/70">
+                Your note for {student.first_name}
+              </label>
+              <textarea
+                value={myNote}
+                onChange={(e) => {
+                  setMyNote(e.target.value);
+                  setNoteSaved(false);
+                }}
+                rows={3}
+                placeholder="What you worked on, what's next…"
+                className="mt-1 w-full rounded-lg border border-brand-green/30 p-2 text-sm outline-none focus:ring-2 focus:ring-brand-aqua"
+              />
+              <div className="mt-2 flex items-center gap-3">
+                <button
+                  onClick={saveNote}
+                  disabled={savingNote}
+                  className="camp-btn px-4 py-1.5 text-sm"
+                >
+                  {savingNote ? "Saving…" : "Save note"}
+                </button>
+                {noteSaved ? (
+                  <span className="text-xs font-semibold text-brand-green">Saved ✓</span>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
+
+          {/* Notes from other instructors (and yours when viewing as admin) */}
+          <ul className="mt-2 space-y-2">
+            {notes
+              .filter((n) => n.instructor_id !== instructorId && n.note && n.note.trim())
+              .map((n) => (
+                <li key={n.id} className="rounded-xl border border-brand-green/15 bg-brand-sand/40 p-3">
+                  <div className="mb-0.5 flex items-center justify-between text-xs font-semibold text-brand-text/70">
+                    <span>{n.instructors?.name ?? "Instructor"}</span>
+                    <span>{formatRelative(n.updated_at)}</span>
+                  </div>
+                  <p className="text-sm leading-relaxed text-brand-text">{n.note}</p>
+                </li>
+              ))}
+          </ul>
+
+          {notes.length === 0 && !instructorId ? (
+            <p className="text-sm italic text-brand-text/50">No progress notes yet.</p>
+          ) : null}
+        </div>
 
         <button onClick={onClose} className="camp-btn mt-6 w-full">
           Close

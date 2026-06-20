@@ -144,8 +144,10 @@ export default function ScheduleBuilderPage() {
   const pickerList = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
-    const list = data.students.filter((s) =>
-      q ? `${s.first_name} ${s.last_name}`.toLowerCase().includes(q) : true
+    const list = data.students.filter(
+      (s) =>
+        s.active !== false &&
+        (q ? `${s.first_name} ${s.last_name}`.toLowerCase().includes(q) : true)
     );
     const top = (s: Student) => {
       const requested = data.requestedByStudent[s.id]?.instructorId === instructorId;

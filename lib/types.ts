@@ -8,6 +8,7 @@ export interface Instructor {
   email: string | null;
   role: Role;
   slug: string | null;
+  active?: boolean;
 }
 
 export interface Student {
@@ -22,6 +23,15 @@ export interface Student {
   parent_notes: string | null;
   staff_notes: string | null;
   preferred_instructor_id: string | null;
+  active?: boolean;
+}
+
+export interface InstructorNote {
+  id: string;
+  student_id: string;
+  instructor_id: string;
+  note: string | null;
+  updated_at: string;
 }
 
 export interface Week {
