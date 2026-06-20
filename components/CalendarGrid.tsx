@@ -50,16 +50,16 @@ export default function CalendarGrid({
       <table className="w-full min-w-[560px] border-collapse">
         <thead>
           <tr>
-            <th className="w-16 bg-brand-aqua/90 p-2 text-xs font-bold text-brand-text" />
+            <th className="w-16 bg-gradient-to-b from-brand-aqualight to-brand-aqua p-2 text-xs font-bold text-brand-text" />
             {days.map((d) => {
               const { day, date } = formatDayHeader(d);
               return (
                 <th
                   key={d}
-                  className="border-l border-white/40 bg-brand-aqua/90 p-2 text-center text-sm font-bold text-brand-text"
+                  className="border-l border-white/40 bg-gradient-to-b from-brand-aqualight to-brand-aqua p-2 text-center text-sm font-bold text-brand-text"
                 >
                   <span className="block uppercase tracking-wide">{day}</span>
-                  <span className="block text-xs font-semibold text-brand-text/70">
+                  <span className="block text-xs font-semibold text-brand-text/75">
                     {date}
                   </span>
                 </th>
