@@ -87,6 +87,24 @@ export default function InstructorLinksPage() {
     copy(lines, "All links");
   }
 
+  // Instructors who haven't set availability for the selected week.
+  const notSet = useMemo(
+    () => instructors.filter((i) => i.slug && !subs[i.id]),
+    [instructors, subs]
+  );
+
+  function nudgeAll() {
+    if (notSet.length === 0) return;
+    const lines = notSet
+      .map(
+        (i) =>
+          `Hi ${i.name.split(" ")[0]} — please set your availability for Week ${week}: ${linkFor(i.slug)}`
+      )
+      .join("\n\n");
+    const header = `Reminder: ${notSet.length} instructor${notSet.length === 1 ? "" : "s"} still need to set Week ${week} availability.\n\n`;
+    copy(header + lines, `Reminder for ${notSet.length}`);
+  }
+
   if (!isSupabaseConfigured) {
     return (
       <main className="min-h-screen">
@@ -122,7 +140,15 @@ export default function InstructorLinksPage() {
           <span className="rounded-full bg-brand-sand px-3 py-1 text-sm font-semibold text-brand-text">
             {setCount}/{instructors.length} set
           </span>
-          <button onClick={copyAll} className="camp-btn-ghost ml-auto px-4 py-1.5 text-sm">
+          <button
+            onClick={nudgeAll}
+            disabled={notSet.length === 0}
+            className="camp-btn-orange ml-auto px-4 py-1.5 text-sm disabled:opacity-40"
+            title="Copy a reminder message for everyone who hasn't set this week"
+          >
+            🔔 Nudge {notSet.length || ""} not set
+          </button>
+          <button onClick={copyAll} className="camp-btn-ghost px-4 py-1.5 text-sm">
             📋 Copy all links
           </button>
         </div>
