@@ -34,9 +34,9 @@ export default function LandingPage() {
         <ConfigNotice />
       ) : (
         <div className="mx-auto max-w-xl px-4 py-8 sm:py-12">
-          <div className="camp-card overflow-hidden text-center">
+          <div className="camp-card text-center">
             {/* Sunset hero band echoing the logo */}
-            <div className="bg-gradient-to-b from-brand-orange/15 via-brand-yellow/15 to-transparent px-8 pt-10 pb-6">
+            <div className="rounded-t-2xl bg-gradient-to-b from-brand-orange/15 via-brand-yellow/15 to-transparent px-8 pt-10 pb-6">
               <Image
                 src="/logo.png"
                 alt="Country Day Camp"
