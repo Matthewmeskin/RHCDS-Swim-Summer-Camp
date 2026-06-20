@@ -104,6 +104,21 @@ create table if not exists student_enrollment (
   primary key (student_id, week_number)
 );
 
+-- Availability change requests (instructor proposes -> admin approves/denies).
+create table if not exists availability_requests (
+  id uuid primary key default gen_random_uuid(),
+  instructor_id uuid references instructors(id) on delete cascade,
+  week_number int,
+  off_slots jsonb not null default '[]',
+  contact_email text,
+  contact_phone text,
+  note text,
+  status text check (status in ('pending','approved','denied')) default 'pending',
+  decision_note text,
+  created_at timestamptz default now(),
+  decided_at timestamptz
+);
+
 -- Helpful query indexes.
 create index if not exists schedule_slots_week_idx on schedule_slots (week_number);
 create index if not exists schedule_slots_instructor_idx on schedule_slots (instructor_id);
@@ -177,3 +192,15 @@ create policy read_student_enrollment
 drop policy if exists write_student_enrollment on student_enrollment;
 create policy write_student_enrollment
   on student_enrollment for all to authenticated using (true) with check (true);
+
+-- Availability requests: instructors submit + read (login-free); admins manage.
+alter table availability_requests enable row level security;
+drop policy if exists insert_availability_requests on availability_requests;
+create policy insert_availability_requests
+  on availability_requests for insert to anon, authenticated with check (true);
+drop policy if exists read_availability_requests on availability_requests;
+create policy read_availability_requests
+  on availability_requests for select to anon, authenticated using (true);
+drop policy if exists manage_availability_requests on availability_requests;
+create policy manage_availability_requests
+  on availability_requests for all to authenticated using (true) with check (true);

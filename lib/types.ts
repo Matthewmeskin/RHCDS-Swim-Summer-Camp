@@ -34,6 +34,22 @@ export interface InstructorNote {
   updated_at: string;
 }
 
+export type RequestStatus = "pending" | "approved" | "denied";
+
+export interface AvailabilityRequest {
+  id: string;
+  instructor_id: string;
+  week_number: number;
+  off_slots: { date: string; start: string }[];
+  contact_email: string | null;
+  contact_phone: string | null;
+  note: string | null;
+  status: RequestStatus;
+  decision_note: string | null;
+  created_at: string;
+  decided_at: string | null;
+}
+
 export interface Week {
   id: string;
   week_number: number;

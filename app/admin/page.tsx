@@ -9,6 +9,7 @@ import {
   fetchAdminStats,
   fetchUnmatchedNames,
   fetchDefaultWeekNumber,
+  pendingRequestCount,
   type AdminStats,
 } from "@/lib/data";
 
@@ -18,6 +19,7 @@ export default function AdminDashboard() {
   const [week, setWeek] = useState<number>(1);
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [unmatched, setUnmatched] = useState<string[]>([]);
+  const [pendingReqs, setPendingReqs] = useState(0);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -26,6 +28,7 @@ export default function AdminDashboard() {
         if (def != null) setWeek(def);
       })
       .catch(() => {});
+    pendingRequestCount().then(setPendingReqs).catch(() => {});
   }, []);
 
   useEffect(() => {
@@ -69,6 +72,27 @@ export default function AdminDashboard() {
             ))}
           </select>
         </div>
+
+        {/* Pending availability requests */}
+        <Link
+          href="/admin/requests"
+          className="camp-card mt-6 flex items-center gap-4 p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
+        >
+          <div className="text-3xl">📥</div>
+          <div className="flex-1">
+            <h2 className="font-display text-2xl text-brand-green">Availability Requests</h2>
+            <p className="text-sm text-brand-text/70">
+              Approve or deny instructor availability changes.
+            </p>
+          </div>
+          {pendingReqs > 0 ? (
+            <span className="rounded-full bg-brand-orange px-3 py-1 text-sm font-bold text-white">
+              {pendingReqs} pending
+            </span>
+          ) : (
+            <span className="text-2xl text-brand-green">→</span>
+          )}
+        </Link>
 
         {/* Schedule builder CTA */}
         <Link

@@ -99,6 +99,104 @@ export async function saveStudent(rec: Partial<Student> & { first_name: string; 
   }
 }
 
+// ---------------------------------------------------------------------------
+// Availability change requests (instructor proposes → admin approves/denies)
+// ---------------------------------------------------------------------------
+
+export async function createAvailabilityRequest(rec: {
+  instructorId: string;
+  weekNumber: number;
+  offSlots: { date: string; start: string }[];
+  email: string | null;
+  phone: string | null;
+  note: string | null;
+}): Promise<void> {
+  const db = requireSupabase();
+  const { error } = await db.from("availability_requests").insert({
+    instructor_id: rec.instructorId,
+    week_number: rec.weekNumber,
+    off_slots: rec.offSlots,
+    contact_email: rec.email,
+    contact_phone: rec.phone,
+    note: rec.note,
+    status: "pending",
+  });
+  if (error) throw error;
+}
+
+export interface AvailabilityRequestRow {
+  id: string;
+  instructor_id: string;
+  week_number: number;
+  off_slots: { date: string; start: string }[];
+  contact_email: string | null;
+  contact_phone: string | null;
+  note: string | null;
+  status: "pending" | "approved" | "denied";
+  decision_note: string | null;
+  created_at: string;
+  decided_at: string | null;
+  instructors: { name: string; slug: string | null } | null;
+}
+
+export async function fetchAvailabilityRequests(
+  statuses: ("pending" | "approved" | "denied")[] = ["pending"]
+): Promise<AvailabilityRequestRow[]> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("availability_requests")
+    .select("*, instructors(name, slug)")
+    .in("status", statuses)
+    .order("created_at", { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as unknown as AvailabilityRequestRow[];
+}
+
+export async function pendingRequestCount(): Promise<number> {
+  const db = requireSupabase();
+  const { count } = await db
+    .from("availability_requests")
+    .select("*", { count: "exact", head: true })
+    .eq("status", "pending");
+  return count ?? 0;
+}
+
+/** Approves (applies the change) or denies a request. Returns it for alerting. */
+export async function decideAvailabilityRequest(
+  requestId: string,
+  approve: boolean,
+  decisionNote: string | null
+): Promise<AvailabilityRequestRow> {
+  const db = requireSupabase();
+  const { data: reqData, error: reqErr } = await db
+    .from("availability_requests")
+    .select("*, instructors(name, slug)")
+    .eq("id", requestId)
+    .single();
+  if (reqErr) throw reqErr;
+  const request = reqData as unknown as AvailabilityRequestRow;
+
+  if (approve) {
+    await saveInstructorAvailability(
+      request.instructor_id,
+      request.week_number,
+      request.off_slots ?? []
+    );
+  }
+
+  const { error } = await db
+    .from("availability_requests")
+    .update({
+      status: approve ? "approved" : "denied",
+      decision_note: decisionNote,
+      decided_at: new Date().toISOString(),
+    })
+    .eq("id", requestId);
+  if (error) throw error;
+
+  return { ...request, status: approve ? "approved" : "denied", decision_note: decisionNote };
+}
+
 export interface InstructorNoteRow {
   id: string;
   note: string | null;

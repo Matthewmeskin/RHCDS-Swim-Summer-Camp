@@ -57,6 +57,7 @@ export default function InstructorView() {
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<Student | null>(null);
   const [editingAvail, setEditingAvail] = useState(false);
+  const [requestSent, setRequestSent] = useState(false);
   const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
@@ -286,19 +287,25 @@ export default function InstructorView() {
             onClose={() => setEditingAvail(false)}
             onSaved={() => {
               setEditingAvail(false);
-              setRefreshTick((t) => t + 1);
+              setRequestSent(true);
             }}
           />
+        ) : null}
+
+        {!isPrint && requestSent ? (
+          <div className="no-print mb-3 rounded-xl border border-brand-green/20 bg-brand-green/10 px-4 py-2 text-sm font-semibold text-brand-green">
+            ✓ Request submitted — the office will review it and you&apos;ll be notified once it&apos;s approved or denied.
+          </div>
         ) : null}
 
         {!isPrint ? (
           <div className="no-print flex flex-col gap-2 sm:flex-row">
             {!editingAvail && data.week ? (
               <button
-                onClick={() => setEditingAvail(true)}
+                onClick={() => { setEditingAvail(true); setRequestSent(false); }}
                 className="camp-btn-ghost w-full sm:w-auto"
               >
-                🗓️ Update my availability
+                🗓️ Request availability change
               </button>
             ) : null}
             {isGuard ? false : hasLessons ? (

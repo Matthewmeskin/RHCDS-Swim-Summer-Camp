@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { formatDayHeader, formatSlotLabel } from "@/lib/format";
-import { saveInstructorAvailability } from "@/lib/data";
+import { createAvailabilityRequest } from "@/lib/data";
 
 const SLOT_TIMES = ["16:30:00", "17:00:00", "17:30:00"];
 
@@ -36,6 +36,9 @@ export default function AvailabilityEditor({
   onClose: () => void;
 }) {
   const [off, setOff] = useState<Set<string>>(new Set(initialOff));
+  const [email, setEmail] = useState("");
+  const [phone, setPhone] = useState("");
+  const [message, setMessage] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -49,6 +52,10 @@ export default function AvailabilityEditor({
   }
 
   async function save() {
+    if (!email.trim() && !phone.trim()) {
+      setError("Please add your email or cell so we can reach you about this request.");
+      return;
+    }
     setSaving(true);
     setError(null);
     try {
@@ -56,21 +63,32 @@ export default function AvailabilityEditor({
         const [date, hhmm] = key.split("__");
         return { date, start: `${hhmm}:00` };
       });
-      await saveInstructorAvailability(instructorId, weekNumber, offSlots);
-      // Fire-and-forget email notification to the aquatics office.
+      await createAvailabilityRequest({
+        instructorId,
+        weekNumber,
+        offSlots,
+        email: email.trim() || null,
+        phone: phone.trim() || null,
+        note: message.trim() || null,
+      });
+      // Notify the office of the pending request (via n8n: Slack + email).
       fetch("/api/notify-availability", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          type: "request",
           instructor: instructorName,
           slug: instructorSlug,
           week: weekNumber,
           offCount: off.size,
+          email: email.trim() || null,
+          phone: phone.trim() || null,
+          note: message.trim() || null,
         }),
       }).catch(() => {});
       onSaved();
     } catch (e) {
-      setError((e as Error).message ?? "Could not save");
+      setError((e as Error).message ?? "Could not submit request");
     } finally {
       setSaving(false);
     }
@@ -79,14 +97,16 @@ export default function AvailabilityEditor({
   return (
     <section className="camp-card mb-6 p-3 sm:p-4">
       <div className="mb-2 flex items-center justify-between">
-        <h2 className="font-display text-2xl text-brand-green">Update my availability</h2>
+        <h2 className="font-display text-2xl text-brand-green">Request an availability change</h2>
         <button onClick={onClose} className="text-sm font-bold text-brand-text/60 hover:text-brand-text">
           Cancel
         </button>
       </div>
       <p className="mb-3 text-sm text-brand-text/70">
-        Tap a slot to mark yourself <strong>Off</strong>. Green = available. Slots
-        where you already have a lesson are locked.
+        Tap slots to mark yourself <strong>Off</strong> (green = available). This
+        is a <strong>request</strong> — the aquatics office reviews it and you&apos;ll
+        be notified once it&apos;s approved or denied. Slots where you already have a
+        lesson are locked.
       </p>
 
       <div className="overflow-x-auto rounded-xl border border-brand-green/15">
@@ -142,11 +162,44 @@ export default function AvailabilityEditor({
         </table>
       </div>
 
+      {/* Contact + message so the office can follow up */}
+      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+        <label className="text-sm">
+          <span className="text-xs font-bold uppercase tracking-wide text-brand-green">Your email</span>
+          <input
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="you@example.com"
+            className="mt-1 w-full rounded-lg border border-brand-green/30 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-aqua"
+          />
+        </label>
+        <label className="text-sm">
+          <span className="text-xs font-bold uppercase tracking-wide text-brand-green">Cell (optional)</span>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="(555) 123-4567"
+            className="mt-1 w-full rounded-lg border border-brand-green/30 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-aqua"
+          />
+        </label>
+      </div>
+      <label className="mt-2 block text-sm">
+        <span className="text-xs font-bold uppercase tracking-wide text-brand-green">Note (optional)</span>
+        <input
+          value={message}
+          onChange={(e) => setMessage(e.target.value)}
+          placeholder="Anything the office should know…"
+          className="mt-1 w-full rounded-lg border border-brand-green/30 px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-aqua"
+        />
+      </label>
+
       {error ? <p className="mt-2 text-sm text-brand-orange">{error}</p> : null}
 
       <div className="mt-3 flex gap-2">
         <button onClick={save} disabled={saving} className="camp-btn">
-          {saving ? "Saving…" : "Save availability"}
+          {saving ? "Sending…" : "Request approval"}
         </button>
         <button onClick={onClose} className="camp-btn-ghost">Cancel</button>
       </div>
