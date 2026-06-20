@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 
 /**
@@ -64,7 +65,10 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
   return (
     <>
       <div className="no-print flex items-center justify-end gap-3 bg-brand-green/10 px-4 py-1 text-xs text-brand-text">
-        <span className="truncate">Signed in as {email}</span>
+        <span className="mr-auto truncate">Signed in as {email}</span>
+        <Link href="/admin/account" className="font-bold text-brand-green hover:underline">
+          Account
+        </Link>
         <button
           onClick={signOut}
           className="font-bold text-brand-green hover:underline"
