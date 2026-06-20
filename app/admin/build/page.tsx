@@ -151,7 +151,34 @@ export default function ScheduleBuilderPage() {
     }
   }
 
-  // Picker list: consistency-first ordering.
+  // Last names of kids already assigned to the selected instructor this week
+  // (for sibling-grouping hints).
+  const instructorLastNames = useMemo(() => {
+    const set = new Set<string>();
+    if (!instructorId) return set;
+    for (const [k, ids] of Object.entries(assignments)) {
+      if (!k.startsWith(`${instructorId}__`)) continue;
+      ids.forEach((id) => {
+        const s = studentsById.get(id);
+        if (s) set.add(s.last_name.toLowerCase());
+      });
+    }
+    return set;
+  }, [assignments, instructorId, studentsById]);
+
+  // A student is a "top" suggestion if they're returning to this instructor or
+  // a parent requested this instructor.
+  const topScore = useCallback(
+    (studentId: string) => {
+      if (!data) return 1;
+      const returning = data.priorByStudent[studentId]?.instructorId === instructorId;
+      const requested = data.requestedByStudent[studentId]?.instructorId === instructorId;
+      return returning || requested ? 0 : 1;
+    },
+    [data, instructorId]
+  );
+
+  // Picker list: suggestions-first ordering.
   const pickerList = useMemo(() => {
     if (!data) return [];
     const q = query.trim().toLowerCase();
@@ -159,9 +186,13 @@ export default function ScheduleBuilderPage() {
       q ? `${s.first_name} ${s.last_name}`.toLowerCase().includes(q) : true
     );
     return list.sort((a, b) => {
-      const aReturn = data.priorByStudent[a.id]?.instructorId === instructorId ? 0 : 1;
-      const bReturn = data.priorByStudent[b.id]?.instructorId === instructorId ? 0 : 1;
-      if (aReturn !== bReturn) return aReturn - bReturn;
+      const at = topScore(a.id);
+      const bt = topScore(b.id);
+      if (at !== bt) return at - bt;
+      // siblings of kids already with this instructor next
+      const aSib = instructorLastNames.has(a.last_name.toLowerCase()) ? 0 : 1;
+      const bSib = instructorLastNames.has(b.last_name.toLowerCase()) ? 0 : 1;
+      if (aSib !== bSib) return aSib - bSib;
       const aPlaced = placedCount.get(a.id) ? 1 : 0;
       const bPlaced = placedCount.get(b.id) ? 1 : 0;
       if (aPlaced !== bPlaced) return aPlaced - bPlaced; // unplaced first
@@ -170,7 +201,7 @@ export default function ScheduleBuilderPage() {
       if (al !== bl) return al - bl;
       return `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`);
     });
-  }, [data, query, instructorId, placedCount]);
+  }, [data, query, placedCount, topScore, instructorLastNames]);
 
   if (!isSupabaseConfigured) {
     return (
@@ -356,19 +387,36 @@ export default function ScheduleBuilderPage() {
                 const priorName = prior
                   ? data?.instructors.find((i) => i.id === prior.instructorId)?.name
                   : null;
+                const requested = data?.requestedByStudent[s.id];
+                const requestedYou = requested?.instructorId === instructorId;
+                const siblingHere = instructorLastNames.has(s.last_name.toLowerCase());
                 const placed = placedCount.get(s.id) ?? 0;
                 return (
                   <li key={s.id}>
-                    <button onClick={() => addStudent(s.id)} className="flex w-full items-center gap-2 px-3 py-2 text-left hover:bg-brand-sand">
+                    <button onClick={() => addStudent(s.id)} className="flex w-full flex-wrap items-center gap-1.5 px-3 py-2 text-left hover:bg-brand-sand">
                       <span className="flex-1 truncate text-sm font-semibold">
                         {s.first_name} {s.last_name}
                         {s.special_needs ? <span title="Special needs note"> ⚠️</span> : null}
                       </span>
                       <LevelBadge level={s.level} />
+                      {requestedYou ? (
+                        <span className="camp-pill bg-brand-green text-white" title="Parent requested you">
+                          ⭐ Requested
+                        </span>
+                      ) : requested ? (
+                        <span className="camp-pill bg-brand-yellow text-brand-text" title={`Parent requested ${requested.name}`}>
+                          ⭐ {requested.name.split(" ")[0]}
+                        </span>
+                      ) : null}
                       {returningToYou ? (
                         <span className="camp-pill bg-brand-green text-white">↩ Yours</span>
                       ) : priorName ? (
                         <span className="camp-pill bg-brand-sand text-brand-text/70">last: {priorName.split(" ")[0]}</span>
+                      ) : null}
+                      {siblingHere ? (
+                        <span className="camp-pill bg-brand-aqua text-brand-text" title="Sibling already with this instructor">
+                          👫 sib
+                        </span>
                       ) : null}
                       {placed > 0 ? (
                         <span className="camp-pill bg-brand-amber/30 text-brand-text/70">{placed}×</span>

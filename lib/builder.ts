@@ -19,6 +19,11 @@ export interface PriorPairing {
   weekNumber: number;
 }
 
+export interface RequestedInstructor {
+  instructorId: string;
+  name: string;
+}
+
 export interface BuilderData {
   week: Week | null;
   instructors: Instructor[]; // teaching instructors (guards excluded)
@@ -28,8 +33,48 @@ export interface BuilderData {
   assignments: Record<string, string[]>;
   /** studentId -> their most recent prior instructor (for consistency hints). */
   priorByStudent: Record<string, PriorPairing>;
+  /** studentId -> instructor a parent requested in goals/parent_notes. */
+  requestedByStudent: Record<string, RequestedInstructor>;
   /** Set of cellKeys the instructor marked unavailable. */
   offCells: Set<string>;
+}
+
+/**
+ * Scans a kid's goals + parent_notes for a requested instructor name.
+ * Prefers a full-name match; falls back to a first name only when that first
+ * name is unique among instructors (avoids "Drew"/"Ellie" ambiguity).
+ */
+export function detectRequestedInstructor(
+  text: string,
+  instructors: Instructor[]
+): RequestedInstructor | null {
+  if (!text.trim()) return null;
+  const hay = text.toLowerCase();
+
+  for (const i of instructors) {
+    const full = i.name.toLowerCase();
+    if (full && new RegExp(`\\b${escapeRe(full)}\\b`).test(hay)) {
+      return { instructorId: i.id, name: i.name };
+    }
+  }
+
+  const firstCounts = new Map<string, number>();
+  for (const i of instructors) {
+    const f = i.name.split(/\s+/)[0].toLowerCase();
+    firstCounts.set(f, (firstCounts.get(f) ?? 0) + 1);
+  }
+  for (const i of instructors) {
+    const f = i.name.split(/\s+/)[0].toLowerCase();
+    if (f.length < 4 || firstCounts.get(f) !== 1) continue;
+    if (new RegExp(`\\b${escapeRe(f)}\\b`).test(hay)) {
+      return { instructorId: i.id, name: i.name };
+    }
+  }
+  return null;
+}
+
+function escapeRe(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function weekDays(week: Week | null): string[] {
@@ -110,6 +155,14 @@ export async function fetchBuilderData(weekNumber: number): Promise<BuilderData>
     }
   }
 
+  // Parent-requested instructors parsed from goals + parent_notes.
+  const requestedByStudent: Record<string, RequestedInstructor> = {};
+  for (const s of students) {
+    const text = `${s.goals ?? ""} ${s.parent_notes ?? ""}`;
+    const req = detectRequestedInstructor(text, instructors);
+    if (req) requestedByStudent[s.id] = req;
+  }
+
   return {
     week,
     instructors,
@@ -117,6 +170,7 @@ export async function fetchBuilderData(weekNumber: number): Promise<BuilderData>
     days: weekDays(week),
     assignments,
     priorByStudent,
+    requestedByStudent,
     offCells,
   };
 }
