@@ -1,16 +1,15 @@
 # Public assets
 
-## logo.png — PLACEHOLDER
+## logo.png
 
-`logo.png` is a generated placeholder badge (tree, sunset, water wave) in the
-camp's brand colors. **Replace it with the real Country Day Camp logo** — the
-circular badge with the "Country Day Camp / Rolling Hills Country Day School"
-text.
+`logo.png` is the official **Country Day Camp** badge (circular logo with tree,
+sunset, water wave, and "Rolling Hills Country Day School" text). The app's
+brand palette in `tailwind.config.ts` is sampled directly from this artwork.
 
-To replace it:
+To swap in a new version later:
 
-1. Drop your real PNG in at `public/logo.png` (keep the filename).
+1. Drop the new PNG in at `public/logo.png` (keep the filename).
 2. That's it — the header and favicon both reference `/logo.png`.
 
-The placeholder can be regenerated with `node scripts/genLogo.mjs`, but you'll
-normally just overwrite the file with the real artwork.
+(`scripts/genLogo.mjs` generates the old placeholder badge and is no longer
+used, but is kept for reference.)
