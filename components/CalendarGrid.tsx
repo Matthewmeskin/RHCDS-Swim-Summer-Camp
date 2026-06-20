@@ -16,6 +16,22 @@ function key(date: string, time: string) {
   return `${date}__${time.slice(0, 5)}`;
 }
 
+/** Pill colors matched to the level badges. */
+function levelPillClass(level: string | null): string {
+  switch (level) {
+    case "Non-Swimmer":
+      return "bg-brand-orange text-white";
+    case "Beginner":
+      return "bg-brand-yellow text-brand-text";
+    case "Intermediate":
+      return "bg-brand-green text-white";
+    case "Advanced":
+      return "bg-brand-aqua text-brand-text";
+    default:
+      return "bg-gray-400 text-white"; // matched student with no level on file
+  }
+}
+
 export default function CalendarGrid({
   days,
   slots,
@@ -95,7 +111,10 @@ export default function CalendarGrid({
                             <button
                               key={p.key}
                               onClick={() => onSelectStudent(p.student as Student)}
-                              className="rounded-lg bg-brand-green px-2 py-1 text-left text-xs font-semibold text-white shadow-sm transition hover:-translate-y-px hover:shadow active:translate-y-0"
+                              title={p.student.level ?? undefined}
+                              className={`rounded-lg px-2 py-1 text-left text-xs font-semibold shadow-sm transition hover:-translate-y-px hover:shadow active:translate-y-0 ${levelPillClass(
+                                p.student.level
+                              )}`}
                             >
                               {p.label}
                             </button>
@@ -103,7 +122,7 @@ export default function CalendarGrid({
                             <span
                               key={p.key}
                               title="No matching student record"
-                              className="rounded-lg bg-brand-orange px-2 py-1 text-left text-xs font-semibold text-white shadow-sm"
+                              className="rounded-lg border border-dashed border-gray-400 bg-white px-2 py-1 text-left text-xs font-semibold text-gray-500 shadow-sm"
                             >
                               {p.label}
                             </span>
