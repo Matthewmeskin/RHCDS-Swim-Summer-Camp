@@ -54,6 +54,7 @@ export const instructors: SeedInstructor[] = [
   { name: "Drew Zane", slug: "drew-zane", role: "instructor" },
   { name: "Kenzie Chua", slug: "kenzie-chua", role: "instructor" },
   { name: "Drew Friscancho", slug: "drew-friscancho", role: "instructor" },
+  { name: "Kate Eaton", slug: "kate-eaton", role: "instructor" },
 ];
 
 export interface SeedStudent {
