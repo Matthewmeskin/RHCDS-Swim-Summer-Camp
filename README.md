@@ -11,6 +11,22 @@ CSS**, **papaparse**, and the **ics** package. No authentication in v1.
 
 ## Quick start
 
+### Easiest: one-paste database setup (no terminal needed)
+
+Open the **Supabase SQL editor** for the swim camp project, paste the entire
+contents of [`supabase/setup.sql`](supabase/setup.sql), and click **Run**. That
+single file creates the schema **and** loads all seed data (25 instructors, 60
+students, the full Week 1 schedule + unavailability). It's idempotent — safe to
+re-run. Then just configure the app:
+
+```bash
+npm install
+cp .env.example .env.local        # values are pre-filled for the camp project
+npm run dev                       # http://localhost:3000
+```
+
+### Alternative: schema + scripted seed
+
 ```bash
 # 1. Install dependencies
 npm install
@@ -22,15 +38,19 @@ cp .env.example .env.local        # values are pre-filled for the camp project
 #    Open the Supabase SQL editor for the project and run supabase/schema.sql
 
 # 4. Seed instructors, students, and the Week 1 schedule
-npm run seed
+npm run seed                      # needs network access to Supabase
 
 # 5. Run the app
 npm run dev                       # http://localhost:3000
 ```
 
-> **Note:** Steps 3–5 require network access to your Supabase project. If you
-> are running inside a restricted/CI environment that blocks the Supabase host,
-> run them from your laptop or let Vercel handle the app at runtime.
+> **Note:** `npm run seed` requires network access to your Supabase project. If
+> you are in a restricted/CI environment that blocks the Supabase host, use the
+> one-paste `supabase/setup.sql` path above instead.
+>
+> `supabase/setup.sql` is generated from the same source data as the seed
+> script via `npx tsx scripts/genSeedSql.ts` — regenerate it if you change
+> `lib/seedData.ts`.
 
 ---
 
