@@ -81,14 +81,14 @@ export default function AdminDashboard() {
 
         {/* Import cards */}
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
-          <Link href="/admin/import/students" className="camp-card block p-6 hover:brightness-95">
+          <Link href="/admin/import/students" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
             <div className="text-3xl">🧑‍🎓</div>
             <h2 className="mt-2 font-display text-2xl text-brand-green">Import Students</h2>
             <p className="mt-1 text-sm text-brand-text/70">
               Upload the CampSite students CSV export.
             </p>
           </Link>
-          <Link href="/admin/import/schedule" className="camp-card block p-6 hover:brightness-95">
+          <Link href="/admin/import/schedule" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
             <div className="text-3xl">🗓️</div>
             <h2 className="mt-2 font-display text-2xl text-brand-green">Import Schedule</h2>
             <p className="mt-1 text-sm text-brand-text/70">

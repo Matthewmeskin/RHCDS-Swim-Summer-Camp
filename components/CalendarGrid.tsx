@@ -46,20 +46,22 @@ export default function CalendarGrid({
   }
 
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto rounded-xl border border-brand-green/15">
       <table className="w-full min-w-[560px] border-collapse">
         <thead>
           <tr>
-            <th className="w-16 border border-brand-green bg-brand-aqua p-2 text-xs font-bold text-brand-text" />
+            <th className="w-16 bg-brand-aqua/90 p-2 text-xs font-bold text-brand-text" />
             {days.map((d) => {
               const { day, date } = formatDayHeader(d);
               return (
                 <th
                   key={d}
-                  className="border border-brand-green bg-brand-aqua p-2 text-center text-sm font-bold text-brand-text"
+                  className="border-l border-white/40 bg-brand-aqua/90 p-2 text-center text-sm font-bold text-brand-text"
                 >
-                  <span className="block">{day}</span>
-                  <span className="block text-xs font-semibold">{date}</span>
+                  <span className="block uppercase tracking-wide">{day}</span>
+                  <span className="block text-xs font-semibold text-brand-text/70">
+                    {date}
+                  </span>
                 </th>
               );
             })}
@@ -67,8 +69,11 @@ export default function CalendarGrid({
         </thead>
         <tbody>
           {SLOT_TIMES.map((time, rowIdx) => (
-            <tr key={time} className={rowIdx % 2 === 0 ? "bg-white" : "bg-brand-cream"}>
-              <th className="border border-brand-green p-2 text-center align-middle text-sm font-bold text-brand-green">
+            <tr
+              key={time}
+              className={rowIdx % 2 === 0 ? "bg-white" : "bg-brand-cream/60"}
+            >
+              <th className="border-t border-brand-green/10 p-2 text-center align-middle text-sm font-bold text-brand-green">
                 {formatSlotLabel(time)}
               </th>
               {days.map((d) => {
@@ -79,8 +84,8 @@ export default function CalendarGrid({
                 return (
                   <td
                     key={k}
-                    className={`border border-brand-green p-1.5 align-top ${
-                      isOff && !pills ? "bg-gray-100" : ""
+                    className={`border-l border-t border-brand-green/10 p-1.5 align-top ${
+                      isOff && !pills ? "bg-gray-50" : ""
                     }`}
                   >
                     {pills && pills.length > 0 ? (
@@ -90,7 +95,7 @@ export default function CalendarGrid({
                             <button
                               key={p.key}
                               onClick={() => onSelectStudent(p.student as Student)}
-                              className="rounded-full bg-brand-green px-2 py-1 text-left text-xs font-semibold text-white hover:brightness-110"
+                              className="rounded-lg bg-brand-green px-2 py-1 text-left text-xs font-semibold text-white shadow-sm transition hover:-translate-y-px hover:shadow active:translate-y-0"
                             >
                               {p.label}
                             </button>
@@ -98,7 +103,7 @@ export default function CalendarGrid({
                             <span
                               key={p.key}
                               title="No matching student record"
-                              className="rounded-full bg-brand-orange px-2 py-1 text-left text-xs font-semibold text-white"
+                              className="rounded-lg bg-brand-orange px-2 py-1 text-left text-xs font-semibold text-white shadow-sm"
                             >
                               {p.label}
                             </span>
@@ -106,7 +111,7 @@ export default function CalendarGrid({
                         )}
                       </div>
                     ) : isOff ? (
-                      <span className="block text-center text-xs font-semibold text-gray-400">
+                      <span className="block text-center text-[11px] font-semibold uppercase tracking-wide text-gray-400">
                         Off
                       </span>
                     ) : null}

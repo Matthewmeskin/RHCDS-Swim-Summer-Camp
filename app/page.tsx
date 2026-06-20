@@ -33,24 +33,27 @@ export default function LandingPage() {
       {!isSupabaseConfigured ? (
         <ConfigNotice />
       ) : (
-        <div className="mx-auto max-w-xl px-4 py-8">
-          <div className="camp-card p-8 text-center">
-            <Image
-              src="/logo.png"
-              alt="Country Day Camp"
-              width={120}
-              height={120}
-              className="mx-auto h-28 w-28 rounded-full"
-              priority
-            />
-            <h1 className="mt-4 font-display text-4xl text-brand-green">
-              Welcome to Swim Camp
-            </h1>
-            <p className="mt-2 text-brand-text/80">
-              Select your name to see your schedule
-            </p>
+        <div className="mx-auto max-w-xl px-4 py-8 sm:py-12">
+          <div className="camp-card overflow-hidden text-center">
+            {/* Sunset hero band echoing the logo */}
+            <div className="bg-gradient-to-b from-brand-orange/15 via-brand-yellow/15 to-transparent px-8 pt-10 pb-6">
+              <Image
+                src="/logo.png"
+                alt="Country Day Camp"
+                width={144}
+                height={144}
+                className="mx-auto h-32 w-32 rounded-full bg-white shadow-md ring-4 ring-white"
+                priority
+              />
+              <h1 className="mt-5 font-display text-4xl text-brand-green sm:text-5xl">
+                Welcome to Swim Camp
+              </h1>
+              <p className="mt-2 text-brand-text/70">
+                Select your name to see your schedule
+              </p>
+            </div>
 
-            <div className="mt-6">
+            <div className="px-8 pb-8 pt-2">
               {loading ? (
                 <p className="text-sm text-brand-text/60">Loading instructors…</p>
               ) : error ? (
