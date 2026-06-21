@@ -13,7 +13,7 @@ import {
   saveStudent,
 } from "@/lib/data";
 import type { Instructor, Student, Role, Level } from "@/lib/types";
-import { SWIM_GROUPS } from "@/lib/groups";
+import { SWIM_GROUPS, groupByLevel } from "@/lib/groups";
 
 const ROLES: Role[] = ["instructor", "guard", "admin"];
 const LEVELS: Level[] = ["Non-Swimmer", "Beginner", "Intermediate", "Advanced"];
@@ -148,6 +148,10 @@ export default function RosterPage() {
           <ul className="mt-4 divide-y divide-brand-sand rounded-2xl border-2 border-brand-green bg-white">
             {filteredStud.map((s) => (
               <li key={s.id} className="flex items-center gap-2 px-4 py-2.5">
+                {(() => {
+                  const g = groupByLevel(s.group_level);
+                  return g ? <span title={g.name} className="text-base leading-none">{g.emoji}</span> : null;
+                })()}
                 <span className={`font-semibold ${s.active === false ? "text-brand-text/40 line-through" : ""}`}>
                   {s.first_name} {s.last_name}
                 </span>

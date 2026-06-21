@@ -80,33 +80,35 @@ export default function LevelsGuidePage() {
                       </h2>
                     </div>
                   </div>
-                  <div className="space-y-3 p-4">
+                  <div className="space-y-4 p-4">
                     {l.overview ? (
                       <div>
-                        <h3 className="text-xs font-bold uppercase tracking-wide text-brand-green">
+                        <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-brand-green">
                           What to teach
                         </h3>
-                        <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-brand-text">
-                          {l.overview}
-                        </p>
+                        <Bullets text={l.overview} />
                       </div>
                     ) : null}
                     {l.assessment ? (
                       <div className="rounded-xl bg-brand-sand/60 p-3">
                         <h3 className="text-xs font-bold uppercase tracking-wide text-brand-green">
-                          Assessment to pass
+                          ✅ Assessment to pass
                         </h3>
-                        <p className="mt-1 text-sm font-semibold text-brand-text">{l.assessment}</p>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {l.assessment.split(/\s*·\s*/).map((a, i) => (
+                            <span key={i} className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-brand-text ring-1 ring-brand-green/20">
+                              {a}
+                            </span>
+                          ))}
+                        </div>
                       </div>
                     ) : null}
                     {l.games ? (
                       <div>
-                        <h3 className="text-xs font-bold uppercase tracking-wide text-brand-green">
+                        <h3 className="mb-1 text-xs font-bold uppercase tracking-wide text-brand-green">
                           Games &amp; activities
                         </h3>
-                        <p className="mt-1 whitespace-pre-line text-sm leading-relaxed text-brand-text/90">
-                          {l.games}
-                        </p>
+                        <SkillList text={l.games} color={color} />
                       </div>
                     ) : null}
                   </div>
@@ -117,5 +119,49 @@ export default function LevelsGuidePage() {
         )}
       </div>
     </main>
+  );
+}
+
+/** Renders newline/bullet text as a clean bulleted list. */
+function Bullets({ text }: { text: string }) {
+  const items = text
+    .split(/\n+/)
+    .map((s) => s.replace(/^[•\-•]\s*/, "").trim())
+    .filter(Boolean);
+  return (
+    <ul className="space-y-1 text-sm leading-relaxed text-brand-text">
+      {items.map((it, i) => (
+        <li key={i} className="flex gap-2">
+          <span className="mt-0.5 text-brand-green">•</span>
+          <span>{it}</span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** Renders "Skill → games" lines with the skill bolded. */
+function SkillList({ text, color }: { text: string; color: string }) {
+  const lines = text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  return (
+    <ul className="space-y-1.5 text-sm leading-relaxed text-brand-text">
+      {lines.map((line, i) => {
+        const m = line.match(/^(.*?)(→|:)\s*(.*)$/);
+        return (
+          <li key={i} className="flex gap-2">
+            <span className="mt-0.5" style={{ color }}>•</span>
+            {m ? (
+              <span>
+                <span className="font-bold">{m[1].trim()}</span>
+                <span className="text-brand-text/50"> — </span>
+                <span className="text-brand-text/90">{m[3]}</span>
+              </span>
+            ) : (
+              <span>{line}</span>
+            )}
+          </li>
+        );
+      })}
+    </ul>
   );
 }

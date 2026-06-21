@@ -17,7 +17,7 @@ import {
 } from "@/lib/data";
 import { parseISODate, formatDayHeader, formatSlotLabel } from "@/lib/format";
 import { getWeekDays } from "@/lib/builder";
-import { groupByLevel } from "@/lib/groups";
+import { SWIM_GROUPS, groupByLevel } from "@/lib/groups";
 import type { Instructor, Student, Week } from "@/lib/types";
 
 type Metric = "lessons" | "kids";
@@ -67,6 +67,7 @@ export default function MasterSchedulePage() {
   const [metric, setMetric] = useState<Metric>("lessons");
   const [showOff, setShowOff] = useState(false);
   const [view, setView] = useState<View>("allweeks");
+  const [groupFilter, setGroupFilter] = useState<number | null>(null);
   const [selected, setSelected] = useState<Student | null>(null);
 
   useEffect(() => {
@@ -97,19 +98,22 @@ export default function MasterSchedulePage() {
     return m;
   }, [students]);
 
+  const inGroup = (studentId: string) =>
+    groupFilter == null || studentsById.get(studentId)?.group_level === groupFilter;
+
   // counts[`${instructorId}__${weekNumber}`] for the selected metric (overview).
   const counts = useMemo(() => {
     const m = new Map<string, number>();
     if (metric === "lessons") {
       for (const s of slots) {
-        if (!s.instructor_id || s.week_number == null || !s.student_id) continue;
+        if (!s.instructor_id || s.week_number == null || !s.student_id || !inGroup(s.student_id)) continue;
         const k = `${s.instructor_id}__${s.week_number}`;
         m.set(k, (m.get(k) ?? 0) + 1);
       }
     } else {
       const seen = new Map<string, Set<string>>();
       for (const s of slots) {
-        if (!s.instructor_id || s.week_number == null || !s.student_id) continue;
+        if (!s.instructor_id || s.week_number == null || !s.student_id || !inGroup(s.student_id)) continue;
         const k = `${s.instructor_id}__${s.week_number}`;
         const set = seen.get(k) ?? new Set<string>();
         set.add(s.student_id);
@@ -118,7 +122,8 @@ export default function MasterSchedulePage() {
       seen.forEach((set, k) => m.set(k, set.size));
     }
     return m;
-  }, [slots, metric]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slots, metric, groupFilter, studentsById]);
 
   // offCounts[`${instructorId}__${weekNumber}`] = number of off slots that week.
   const offCounts = useMemo(() => {
@@ -165,12 +170,13 @@ export default function MasterSchedulePage() {
   const kidsByCell = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const s of slots) {
-      if (!s.instructor_id || !s.student_id) continue;
+      if (!s.instructor_id || !s.student_id || !inGroup(s.student_id)) continue;
       const k = `${s.instructor_id}__${s.lesson_date}__${hhmm(s.start_time)}`;
       (m.get(k) ?? m.set(k, []).get(k)!).push(s.student_id);
     }
     return m;
-  }, [slots]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slots, groupFilter, studentsById]);
 
   const offByCell = useMemo(() => {
     const set = new Set<string>();
@@ -226,6 +232,36 @@ export default function MasterSchedulePage() {
                   {label}
                 </button>
               ))}
+            </div>
+
+            {/* Group filter */}
+            <div className="mt-3 flex flex-wrap items-center gap-1.5">
+              <span className="mr-1 text-xs font-bold uppercase tracking-wide text-brand-text/60">Group:</span>
+              <button
+                onClick={() => setGroupFilter(null)}
+                className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                  groupFilter == null ? "border-brand-green bg-brand-green text-white" : "border-brand-green/30 bg-white text-brand-green"
+                }`}
+              >
+                All
+              </button>
+              {SWIM_GROUPS.map((g) => {
+                const active = groupFilter === g.level;
+                return (
+                  <button
+                    key={g.level}
+                    onClick={() => setGroupFilter(active ? null : g.level)}
+                    className="rounded-full border px-3 py-1 text-xs font-bold transition"
+                    style={
+                      active
+                        ? { backgroundColor: g.color, borderColor: g.color, color: "white" }
+                        : { borderColor: g.color, color: g.color, backgroundColor: "white" }
+                    }
+                  >
+                    {g.emoji} {g.name}
+                  </button>
+                );
+              })}
             </div>
 
             {view === "overview" ? (

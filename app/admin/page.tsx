@@ -145,9 +145,9 @@ export default function AdminDashboard() {
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Link href="/admin/import/students" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
             <div className="text-3xl">🧑‍🎓</div>
-            <h2 className="mt-2 font-display text-2xl text-brand-green">Import Students</h2>
+            <h2 className="mt-2 font-display text-2xl text-brand-green">Import Roster</h2>
             <p className="mt-1 text-sm text-brand-text/70">
-              Upload the CampSite students CSV export.
+              One CSV — students, swim groups (🐙🐠🐟🐢🐬🦈), and parent preferences.
             </p>
           </Link>
           <Link href="/admin/import/schedule" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
@@ -157,25 +157,11 @@ export default function AdminDashboard() {
               Upload the Google Sheets schedule grid for a week.
             </p>
           </Link>
-          <Link href="/admin/import/preferences" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
-            <div className="text-3xl">💬</div>
-            <h2 className="mt-2 font-display text-2xl text-brand-green">Import Parent Preferences</h2>
-            <p className="mt-1 text-sm text-brand-text/70">
-              Add parent notes and requested instructors to each kid (flexible CSV).
-            </p>
-          </Link>
           <Link href="/admin/import/enrollment" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
             <div className="text-3xl">📝</div>
             <h2 className="mt-2 font-display text-2xl text-brand-green">Import Enrollment</h2>
             <p className="mt-1 text-sm text-brand-text/70">
               Who attends each week & how many lessons — powers Auto-fill.
-            </p>
-          </Link>
-          <Link href="/admin/import/levels" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
-            <div className="text-3xl">🐬</div>
-            <h2 className="mt-2 font-display text-2xl text-brand-green">Import Swim Groups</h2>
-            <p className="mt-1 text-sm text-brand-text/70">
-              Assign campers to a group (🐙🐠🐟🐢🐬🦈) in bulk by name.
             </p>
           </Link>
         </div>

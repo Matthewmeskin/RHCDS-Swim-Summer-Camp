@@ -1,10 +1,12 @@
 import Papa from "papaparse";
 import { detectSpecialNeeds } from "./specialNeeds";
+import { resolveGroupLevel } from "./parseLevels";
 import type { Level } from "./types";
 
 /**
- * Parser for the CampSite students CSV export.
- * Columns: Last name, First name, Gender, Age, Level, Goals for Lessons
+ * All-in-one roster parser. Auto-detects columns for student demographics,
+ * skill level, goals, parent preferences/notes, the swim group (1–6), and a
+ * preferred instructor — so one CSV can carry everything.
  */
 
 export interface ParsedStudent {
@@ -17,6 +19,10 @@ export interface ParsedStudent {
   special_needs: boolean;
   /** Optional — only present if the export includes a preferences/notes column. */
   parent_notes: string | null;
+  /** Optional — swim group 1–6 if a group column is present. */
+  group_level: number | null;
+  /** Optional — raw preferred-instructor text if present. */
+  preferred_instructor_raw: string | null;
 }
 
 export interface ParseStudentsResult {
@@ -82,9 +88,23 @@ export function parseStudents(csvText: string): ParseStudentsResult {
         "parent notes",
         "parent preferences",
         "preferences",
+        "notes",
+      ]) || null;
+
+    // Swim group (1–6) — group-specific column names only (not the skill "level").
+    const groupRaw = pick(row, ["swim group", "group", "group level", "swim level", "groups", "skill group"]);
+    const group_level = groupRaw ? resolveGroupLevel(groupRaw) : null;
+    if (groupRaw && group_level == null) {
+      warnings.push(`Row ${idx + 2} (${first_name} ${last_name}): could not read group "${groupRaw}"`);
+    }
+
+    const preferred =
+      pick(row, [
+        "preferred instructor",
         "instructor preference",
         "instructor preferences",
-        "notes",
+        "requested instructor",
+        "coach",
       ]) || null;
 
     students.push({
@@ -96,6 +116,8 @@ export function parseStudents(csvText: string): ParseStudentsResult {
       goals,
       special_needs: detectSpecialNeeds(`${goals} ${parentNotes ?? ""}`),
       parent_notes: parentNotes,
+      group_level,
+      preferred_instructor_raw: preferred,
     });
   });
 

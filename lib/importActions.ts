@@ -14,18 +14,29 @@ export interface StudentImportResult {
   updated: number;
   errors: number;
   errorMessages: string[];
+  groupsAssigned: number;
+  instructorsMatched: number;
+  unmatchedInstructors: string[];
 }
 
-/** Upserts students on (first_name, last_name); reports insert vs update counts. */
+/**
+ * All-in-one roster upsert on (first_name, last_name): demographics, level,
+ * goals, parent notes, swim group, and a preferred instructor (matched to the
+ * roster). Each optional column is only written when the file actually carried
+ * it, so a routine re-import never wipes data added in-app.
+ */
 export async function importStudents(
   parsed: ParsedStudent[]
 ): Promise<StudentImportResult> {
   const db = requireSupabase();
 
-  const { data: existing, error: exErr } = await db
-    .from("students")
-    .select("first_name, last_name");
+  const [{ data: existing, error: exErr }, { data: instrRows, error: iErr }] =
+    await Promise.all([
+      db.from("students").select("first_name, last_name"),
+      db.from("instructors").select("*"),
+    ]);
   if (exErr) throw exErr;
+  if (iErr) throw iErr;
 
   const existingSet = new Set(
     (existing ?? []).map(
@@ -33,6 +44,7 @@ export async function importStudents(
         `${s.first_name.toLowerCase()}|${s.last_name.toLowerCase()}`
     )
   );
+  const instructors = (instrRows ?? []) as Instructor[];
 
   let inserted = 0;
   let updated = 0;
@@ -42,20 +54,40 @@ export async function importStudents(
     else inserted++;
   }
 
-  // Only manage parent_notes when the file actually carried a preferences
-  // column — otherwise we'd wipe notes added in-app on a routine re-import.
+  // Only manage optional columns when the file actually carried them.
   const hasParentNotes = parsed.some((s) => s.parent_notes);
+  const hasGroup = parsed.some((s) => s.group_level != null);
+  const hasPreferred = parsed.some((s) => s.preferred_instructor_raw);
 
-  const rows = parsed.map((s) => ({
-    first_name: s.first_name,
-    last_name: s.last_name,
-    gender: s.gender,
-    age: s.age,
-    level: s.level,
-    goals: s.goals,
-    special_needs: s.special_needs,
-    ...(hasParentNotes ? { parent_notes: s.parent_notes } : {}),
-  }));
+  let groupsAssigned = 0;
+  let instructorsMatched = 0;
+  const unmatchedInstructors: string[] = [];
+
+  const rows = parsed.map((s) => {
+    if (s.group_level != null) groupsAssigned++;
+    let preferredId: string | null = null;
+    if (s.preferred_instructor_raw) {
+      const match = detectRequestedInstructor(s.preferred_instructor_raw, instructors);
+      if (match) {
+        preferredId = match.instructorId;
+        instructorsMatched++;
+      } else {
+        unmatchedInstructors.push(s.preferred_instructor_raw);
+      }
+    }
+    return {
+      first_name: s.first_name,
+      last_name: s.last_name,
+      gender: s.gender,
+      age: s.age,
+      level: s.level,
+      goals: s.goals,
+      special_needs: s.special_needs,
+      ...(hasParentNotes ? { parent_notes: s.parent_notes } : {}),
+      ...(hasGroup ? { group_level: s.group_level } : {}),
+      ...(hasPreferred ? { preferred_instructor_id: preferredId } : {}),
+    };
+  });
 
   const errorMessages: string[] = [];
   const { error } = await db
@@ -63,17 +95,24 @@ export async function importStudents(
     .upsert(rows, { onConflict: "first_name,last_name" });
   if (error) {
     errorMessages.push(error.message);
-    return { inserted: 0, updated: 0, errors: rows.length, errorMessages };
+    return {
+      inserted: 0, updated: 0, errors: rows.length, errorMessages,
+      groupsAssigned: 0, instructorsMatched: 0, unmatchedInstructors: [],
+    };
   }
 
   await db.from("import_logs").insert({
     file_type: "students",
     rows_inserted: inserted,
     rows_updated: updated,
-    warnings: [],
+    warnings: { groupsAssigned, instructorsMatched, unmatchedInstructors, kind: "roster" },
   });
 
-  return { inserted, updated, errors: 0, errorMessages };
+  return {
+    inserted, updated, errors: 0, errorMessages,
+    groupsAssigned, instructorsMatched,
+    unmatchedInstructors: Array.from(new Set(unmatchedInstructors)),
+  };
 }
 
 export interface ScheduleImportResult {
