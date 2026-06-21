@@ -401,6 +401,41 @@ export async function saveAllWeeks(
  * Copies one instructor's assignments from a source week into every later week
  * (mapped day-for-day), for season-long consistency. Pure / in-memory.
  */
+/**
+ * Copies one instructor's schedule from `sourceWeek` into a single `targetWeek`,
+ * mapped day-for-day, overwriting that instructor's cells in the target week.
+ * Used by "Copy last week → here" so the director can fill one week at a time.
+ */
+export function copyInstructorWeekInto(
+  assignments: Record<string, string[]>,
+  instructorId: string,
+  sourceWeek: Week,
+  targetWeek: Week
+): Record<string, string[]> {
+  const next = { ...assignments };
+  const srcDays = weekDays(sourceWeek);
+  const tgtDays = weekDays(targetWeek);
+
+  // Clear this instructor's cells in the target week first.
+  for (const d of tgtDays) {
+    for (const slot of BUILDER_SLOTS) {
+      delete next[cellKey(instructorId, d, slot.start)];
+    }
+  }
+  // Copy source week cells into the matching target weekday.
+  srcDays.forEach((sd, idx) => {
+    const td = tgtDays[idx];
+    if (!td) return;
+    for (const slot of BUILDER_SLOTS) {
+      const srcVal = assignments[cellKey(instructorId, sd, slot.start)];
+      if (srcVal && srcVal.length) {
+        next[cellKey(instructorId, td, slot.start)] = [...srcVal];
+      }
+    }
+  });
+  return next;
+}
+
 export function copyInstructorWeekToLater(
   assignments: Record<string, string[]>,
   instructorId: string,

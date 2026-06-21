@@ -15,6 +15,7 @@ import {
   fetchAllBuilderData,
   saveAllWeeks,
   copyInstructorWeekToLater,
+  copyInstructorWeekInto,
   checkSchedule,
   type AllBuilderData,
   type HealthIssue,
@@ -196,6 +197,18 @@ export default function ScheduleBuilderPage() {
     setToast({ msg: `Copied Week ${week.week_number} to later weeks for ${instructorName}.`, kind: "success" });
   }
 
+  // Copies the immediately preceding week's schedule into this one week.
+  function copyPrevInto(week: Week) {
+    if (!data) return;
+    const prev = data.weeks
+      .filter((w) => w.week_number < week.week_number)
+      .sort((a, b) => b.week_number - a.week_number)[0];
+    if (!prev) return;
+    if (!confirm(`Copy ${instructorName}'s Week ${prev.week_number} into Week ${week.week_number} (overwrites just this week)?`)) return;
+    setAssignments((cur) => copyInstructorWeekInto(cur, instructorId, prev, week));
+    setToast({ msg: `Copied Week ${prev.week_number} → Week ${week.week_number} for ${instructorName}.`, kind: "success" });
+  }
+
   async function handleSave() {
     if (!data) return;
     setSaving(true);
@@ -295,17 +308,28 @@ export default function ScheduleBuilderPage() {
                 const days = getWeekDays(week);
                 return (
                   <section key={week.week_number} className="camp-card overflow-hidden">
-                    <div className="flex items-center justify-between gap-2 border-b border-brand-green/10 bg-brand-sand/50 px-3 py-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-brand-green/10 bg-brand-sand/50 px-3 py-2">
                       <h2 className="font-display text-xl text-brand-green">
                         {week.label ?? `Week ${week.week_number}`}
                       </h2>
-                      <button
-                        onClick={() => copyToLater(week)}
-                        className="rounded-full border border-brand-green/30 bg-white px-3 py-1 text-xs font-bold text-brand-green hover:bg-brand-sand"
-                        title="Copy this week to all later weeks for this instructor"
-                      >
-                        ↓ Copy to later weeks
-                      </button>
+                      <div className="flex flex-wrap gap-2">
+                        {week.week_number > data.weeks[0].week_number ? (
+                          <button
+                            onClick={() => copyPrevInto(week)}
+                            className="rounded-full border border-brand-green/30 bg-white px-3 py-1 text-xs font-bold text-brand-green hover:bg-brand-sand"
+                            title="Copy the previous week into just this week for this instructor"
+                          >
+                            ↻ Copy last week here
+                          </button>
+                        ) : null}
+                        <button
+                          onClick={() => copyToLater(week)}
+                          className="rounded-full border border-brand-green/30 bg-white px-3 py-1 text-xs font-bold text-brand-green hover:bg-brand-sand"
+                          title="Copy this week to all later weeks for this instructor"
+                        >
+                          ↓ Copy to later weeks
+                        </button>
+                      </div>
                     </div>
                     <div className="overflow-x-auto">
                       <table className="w-full min-w-[600px] border-collapse">
