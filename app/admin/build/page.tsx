@@ -46,8 +46,21 @@ export default function ScheduleBuilderPage() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(null);
+  const [toast, setToast] = useState<{ msg: string; kind: ToastKind; undo?: () => void } | null>(null);
   const [showAuto, setShowAuto] = useState(false);
+
+  // Show a toast whose "Undo" restores the assignments to `snapshot` (a deep
+  // copy taken before the change). Everything here is in-memory until Save.
+  function toastWithUndo(msg: string, kind: ToastKind, snapshot: Record<string, string[]>) {
+    setToast({
+      msg,
+      kind,
+      undo: () => {
+        setAssignments(snapshot);
+        setToast({ msg: "Undone ✓", kind: "success" });
+      },
+    });
+  }
 
   function runAuto(opts: {
     scope: "current" | "all";
@@ -62,6 +75,7 @@ export default function ScheduleBuilderPage() {
     )
       return;
 
+    const snapshot = structuredClone(assignments); // for one-tap Undo
     const teaching = data.instructors; // active, guards already excluded
     const activeStudents = data.students.filter((s) => s.active !== false);
     const weeksToRun =
@@ -100,10 +114,11 @@ export default function ScheduleBuilderPage() {
     setAssignments(working);
     setShowAuto(false);
     const couldnt = Array.from(new Set(unplaced));
-    setToast({
-      msg: `Auto-fill: ${placed} placed · ${partial} partial${couldnt.length ? ` · ${couldnt.length} couldn't place` : ""} — review & Save`,
-      kind: couldnt.length ? "error" : "success",
-    });
+    toastWithUndo(
+      `Auto-fill: ${placed} placed · ${partial} partial${couldnt.length ? ` · ${couldnt.length} couldn't place` : ""} — review & Save`,
+      couldnt.length ? "error" : "success",
+      snapshot
+    );
   }
 
   const load = useCallback(async () => {
@@ -184,18 +199,22 @@ export default function ScheduleBuilderPage() {
   }
 
   function removeStudent(date: string, start: string, studentId: string) {
+    const snapshot = structuredClone(assignments);
     const k = cellKey(instructorId, date, start);
     setAssignments((prev) => ({
       ...prev,
       [k]: (prev[k] ?? []).filter((id) => id !== studentId),
     }));
+    const nm = studentsById.get(studentId);
+    toastWithUndo(`Removed ${nm ? nm.first_name : "camper"} — tap Undo to put back`, "success", snapshot);
   }
 
   function copyToLater(week: Week) {
     if (!data) return;
     if (!confirm(`Copy ${instructorName}'s Week ${week.week_number} to every later week (overwrites their later weeks)?`)) return;
+    const snapshot = structuredClone(assignments);
     setAssignments((prev) => copyInstructorWeekToLater(prev, instructorId, week, data.weeks));
-    setToast({ msg: `Copied Week ${week.week_number} to later weeks for ${instructorName}.`, kind: "success" });
+    toastWithUndo(`Copied Week ${week.week_number} to later weeks for ${instructorName}.`, "success", snapshot);
   }
 
   // Copies the immediately preceding week's schedule into this one week.
@@ -206,8 +225,9 @@ export default function ScheduleBuilderPage() {
       .sort((a, b) => b.week_number - a.week_number)[0];
     if (!prev) return;
     if (!confirm(`Copy ${instructorName}'s Week ${prev.week_number} into Week ${week.week_number} (overwrites just this week)?`)) return;
+    const snapshot = structuredClone(assignments);
     setAssignments((cur) => copyInstructorWeekInto(cur, instructorId, prev, week));
-    setToast({ msg: `Copied Week ${prev.week_number} → Week ${week.week_number} for ${instructorName}.`, kind: "success" });
+    toastWithUndo(`Copied Week ${prev.week_number} → Week ${week.week_number} for ${instructorName}.`, "success", snapshot);
   }
 
   async function handleSave() {
@@ -461,7 +481,14 @@ export default function ScheduleBuilderPage() {
         />
       ) : null}
 
-      {toast ? <Toast message={toast.msg} kind={toast.kind} onDismiss={() => setToast(null)} /> : null}
+      {toast ? (
+        <Toast
+          message={toast.msg}
+          kind={toast.kind}
+          onDismiss={() => setToast(null)}
+          action={toast.undo ? { label: "Undo", onClick: toast.undo } : undefined}
+        />
+      ) : null}
     </main>
   );
 }

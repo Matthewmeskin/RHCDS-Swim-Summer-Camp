@@ -29,7 +29,7 @@ export default function RosterPage() {
   const [loading, setLoading] = useState(true);
   const [editingInstr, setEditingInstr] = useState<Partial<Instructor> | null>(null);
   const [editingStudent, setEditingStudent] = useState<Partial<Student> | null>(null);
-  const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(null);
+  const [toast, setToast] = useState<{ msg: string; kind: ToastKind; undo?: () => void } | null>(null);
 
   async function load() {
     setLoading(true);
@@ -56,19 +56,34 @@ export default function RosterPage() {
     );
   }, [students, query]);
 
+  async function setActive(kind: Tab, rec: Instructor | Student, value: boolean) {
+    if (kind === "instructors") {
+      const i = rec as Instructor;
+      await saveInstructor({ id: i.id, name: i.name, role: i.role, email: i.email, slug: i.slug, active: value });
+    } else {
+      await saveStudent({ ...(rec as Student), active: value });
+    }
+  }
+
   async function quickToggleActive(kind: Tab, rec: Instructor | Student) {
+    const wasActive = (rec as { active?: boolean }).active !== false;
+    const name =
+      kind === "instructors"
+        ? (rec as Instructor).name
+        : `${(rec as Student).first_name} ${(rec as Student).last_name}`;
     try {
-      if (kind === "instructors") {
-        const i = rec as Instructor;
-        await saveInstructor({
-          id: i.id, name: i.name, role: i.role, email: i.email, slug: i.slug,
-          active: !(i.active !== false),
-        });
-      } else {
-        const s = rec as Student;
-        await saveStudent({ ...s, active: !(s.active !== false) });
-      }
-      load();
+      await setActive(kind, rec, !wasActive);
+      await load();
+      setToast({
+        msg: wasActive ? `Archived ${name}` : `Restored ${name} ✓`,
+        kind: "success",
+        undo: () => {
+          setActive(kind, rec, wasActive)
+            .then(load)
+            .then(() => setToast({ msg: "Undone ✓", kind: "success" }))
+            .catch((e) => setToast({ msg: (e as Error).message ?? "Undo failed", kind: "error" }));
+        },
+      });
     } catch (e) {
       setToast({ msg: (e as Error).message ?? "Update failed", kind: "error" });
     }
@@ -198,7 +213,14 @@ export default function RosterPage() {
         />
       ) : null}
 
-      {toast ? <Toast message={toast.msg} kind={toast.kind} onDismiss={() => setToast(null)} /> : null}
+      {toast ? (
+        <Toast
+          message={toast.msg}
+          kind={toast.kind}
+          onDismiss={() => setToast(null)}
+          action={toast.undo ? { label: "Undo", onClick: toast.undo } : undefined}
+        />
+      ) : null}
     </main>
   );
 }
