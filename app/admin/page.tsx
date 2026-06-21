@@ -7,6 +7,7 @@ import ConfigNotice from "@/components/ConfigNotice";
 import TodayPanel, { type TodoItem } from "@/components/TodayPanel";
 import BackupCard from "@/components/BackupCard";
 import InstallButton from "@/components/InstallButton";
+import WelcomeTour from "@/components/WelcomeTour";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import {
   fetchAdminStats,
@@ -310,6 +311,9 @@ export default function AdminDashboard() {
         {/* Install to phone home screen */}
         <InstallButton />
       </div>
+
+      {/* First-time guided tour (+ always-available re-open button) */}
+      <WelcomeTour />
     </main>
   );
 }
