@@ -330,7 +330,7 @@ export default function InstructorView() {
       <StudentModal
         student={selected}
         onClose={() => setSelected(null)}
-        instructorId={data.instructor.id}
+        onSaved={(u) => setSelected(u)}
       />
     </main>
   );

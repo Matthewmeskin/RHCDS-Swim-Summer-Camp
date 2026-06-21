@@ -261,7 +261,17 @@ export default function MasterSchedulePage() {
         )}
       </div>
 
-      {selected ? <StudentModal student={selected} adminEdit onClose={() => setSelected(null)} /> : null}
+      {selected ? (
+        <StudentModal
+          student={selected}
+          adminEdit
+          onClose={() => setSelected(null)}
+          onSaved={(u) => {
+            setSelected(u);
+            setStudents((prev) => prev.map((s) => (s.id === u.id ? u : s)));
+          }}
+        />
+      ) : null}
     </main>
   );
 }

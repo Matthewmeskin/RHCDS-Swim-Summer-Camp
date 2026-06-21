@@ -193,6 +193,32 @@ drop policy if exists write_student_enrollment on student_enrollment;
 create policy write_student_enrollment
   on student_enrollment for all to authenticated using (true) with check (true);
 
+-- Swim levels (the 6 group guides): public read, admin write.
+create table if not exists swim_levels (
+  level int primary key check (level between 1 and 6),
+  name text not null,
+  emoji text not null,
+  color text not null,
+  overview text,
+  assessment text,
+  games text,
+  updated_at timestamptz default now()
+);
+alter table students add column if not exists group_level int check (group_level between 1 and 6);
+alter table swim_levels enable row level security;
+drop policy if exists read_swim_levels on swim_levels;
+create policy read_swim_levels on swim_levels for select to anon, authenticated using (true);
+drop policy if exists write_swim_levels on swim_levels;
+create policy write_swim_levels on swim_levels for all to authenticated using (true) with check (true);
+
+-- Login-free instructors (anon) may edit ONLY students.staff_notes. Lock anon
+-- to a column-level grant so they cannot touch names/levels/active, etc.
+revoke update on students from anon;
+grant update (staff_notes) on students to anon;
+drop policy if exists staff_notes_anon_update on students;
+create policy staff_notes_anon_update
+  on students for update to anon using (true) with check (true);
+
 -- Availability requests: instructors submit + read (login-free); admins manage.
 alter table availability_requests enable row level security;
 drop policy if exists insert_availability_requests on availability_requests;

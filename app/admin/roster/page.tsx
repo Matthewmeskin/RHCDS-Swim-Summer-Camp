@@ -13,6 +13,7 @@ import {
   saveStudent,
 } from "@/lib/data";
 import type { Instructor, Student, Role, Level } from "@/lib/types";
+import { SWIM_GROUPS } from "@/lib/groups";
 
 const ROLES: Role[] = ["instructor", "guard", "admin"];
 const LEVELS: Level[] = ["Non-Swimmer", "Beginner", "Intermediate", "Advanced"];
@@ -284,6 +285,7 @@ function StudentEditor({
     gender: value.gender ?? "",
     age: value.age != null ? String(value.age) : "",
     level: (value.level as Level | "") ?? "",
+    group_level: value.group_level ?? null,
     goals: value.goals ?? "",
     parent_notes: value.parent_notes ?? "",
     staff_notes: value.staff_notes ?? "",
@@ -304,6 +306,7 @@ function StudentEditor({
         gender: f.gender.trim() || null,
         age: f.age ? parseInt(f.age, 10) : null,
         level: (f.level || null) as Level | null,
+        group_level: f.group_level,
         goals: f.goals.trim() || null,
         parent_notes: f.parent_notes.trim() || null,
         staff_notes: f.staff_notes.trim() || null,
@@ -331,6 +334,18 @@ function StudentEditor({
           <select className={inputCls} value={f.level} onChange={(e) => set("level", e.target.value)}>
             <option value="">—</option>
             {LEVELS.map((l) => <option key={l} value={l}>{l}</option>)}
+          </select>
+        </Field>
+        <Field label="Swim group">
+          <select
+            className={inputCls}
+            value={f.group_level ?? ""}
+            onChange={(e) => set("group_level", e.target.value ? parseInt(e.target.value, 10) : null)}
+          >
+            <option value="">— No group —</option>
+            {SWIM_GROUPS.map((g) => (
+              <option key={g.level} value={g.level}>Level {g.level}: {g.emoji} {g.name}</option>
+            ))}
           </select>
         </Field>
         <Field label="Goals"><textarea rows={2} className={inputCls} value={f.goals} onChange={(e) => set("goals", e.target.value)} /></Field>

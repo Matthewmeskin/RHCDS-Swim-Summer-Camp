@@ -110,6 +110,13 @@ export async function saveSwimLevel(
   if (error) throw error;
 }
 
+/** Staff (instructors) may edit ONLY a student's staff notes. */
+export async function saveStaffNotes(studentId: string, staff_notes: string | null): Promise<void> {
+  const db = requireSupabase();
+  const { error } = await db.from("students").update({ staff_notes }).eq("id", studentId);
+  if (error) throw error;
+}
+
 export async function saveStudent(rec: Partial<Student> & { first_name: string; last_name: string }): Promise<void> {
   const db = requireSupabase();
   const payload = {
@@ -122,6 +129,7 @@ export async function saveStudent(rec: Partial<Student> & { first_name: string; 
     special_needs: rec.special_needs ?? false,
     parent_notes: rec.parent_notes ?? null,
     staff_notes: rec.staff_notes ?? null,
+    group_level: rec.group_level ?? null,
     active: rec.active ?? true,
   };
   if (rec.id) {
