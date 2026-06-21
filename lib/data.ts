@@ -460,6 +460,8 @@ export async function fetchAllScheduleSlots(): Promise<SlotLite[]> {
 export interface OffLite {
   instructor_id: string | null;
   week_number: number | null;
+  lesson_date: string;
+  start_time: string;
 }
 
 /** All "off" availability rows (lite) — for the master-schedule time-off overlay. */
@@ -467,7 +469,7 @@ export async function fetchAllOffAvailability(): Promise<OffLite[]> {
   const db = requireSupabase();
   const { data, error } = await db
     .from("instructor_availability")
-    .select("instructor_id, week_number")
+    .select("instructor_id, week_number, lesson_date, start_time")
     .eq("is_available", false);
   if (error) throw error;
   return (data ?? []) as OffLite[];
