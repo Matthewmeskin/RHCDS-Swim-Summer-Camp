@@ -159,7 +159,35 @@ export default function InstructorView() {
     return (
       <main className="min-h-screen">
         <Nav backHref="/" />
-        <p className="p-8 text-center text-brand-text/60">Loading schedule…</p>
+        <div className="mx-auto max-w-4xl px-4 py-6">
+          {/* header */}
+          <div className="mb-4">
+            <div className="h-9 w-56 animate-pulse rounded-lg bg-brand-sand/70" />
+            <div className="mt-2 h-5 w-24 animate-pulse rounded-full bg-brand-sand/60" />
+          </div>
+          {/* week selector */}
+          <div className="mb-4 flex items-center gap-2">
+            <div className="h-5 w-12 animate-pulse rounded bg-brand-sand/50" />
+            <div className="h-9 w-52 animate-pulse rounded-full bg-brand-sand/60" />
+          </div>
+          {/* students card */}
+          <div className="camp-card mb-6 p-4">
+            <div className="mb-3 h-7 w-52 animate-pulse rounded bg-brand-sand/70" />
+            <div className="flex flex-wrap gap-2">
+              {["w-28", "w-20", "w-32", "w-24"].map((w, i) => (
+                <div key={i} className={`h-8 ${w} animate-pulse rounded-full bg-brand-sand/50`} />
+              ))}
+            </div>
+          </div>
+          {/* grid */}
+          <div className="overflow-hidden rounded-xl border border-brand-green/15">
+            <div className="h-10 animate-pulse bg-brand-aqua/40" />
+            {[0, 1, 2].map((r) => (
+              <div key={r} className="h-12 animate-pulse border-t border-brand-green/10 bg-white/50" />
+            ))}
+          </div>
+          <span className="sr-only">Loading schedule…</span>
+        </div>
       </main>
     );
   }

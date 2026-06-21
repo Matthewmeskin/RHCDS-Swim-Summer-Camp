@@ -179,7 +179,19 @@ export default function CamperSchedulePage() {
             ) : null}
 
             {loadingSched ? (
-              <p className="mt-6 text-center text-brand-text/60">Loading schedule…</p>
+              <div className="mt-6 space-y-4">
+                {[0, 1].map((r) => (
+                  <div key={r} className="camp-card p-4">
+                    <div className="mb-3 h-6 w-40 animate-pulse rounded bg-brand-sand/70" />
+                    <div className="overflow-hidden rounded-xl border border-brand-green/15">
+                      <div className="h-9 animate-pulse bg-brand-aqua/40" />
+                      <div className="h-11 animate-pulse border-t border-brand-green/10 bg-white/50" />
+                      <div className="h-11 animate-pulse border-t border-brand-green/10 bg-white/50" />
+                    </div>
+                  </div>
+                ))}
+                <span className="sr-only">Loading schedule…</span>
+              </div>
             ) : lessons.length === 0 ? (
               <p className="mt-6 text-sm text-brand-text/60">
                 No lessons scheduled yet for {selected.first_name}.
