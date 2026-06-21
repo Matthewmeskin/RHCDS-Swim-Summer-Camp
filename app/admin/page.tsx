@@ -40,7 +40,7 @@ export default function AdminDashboard() {
   if (!isSupabaseConfigured) {
     return (
       <main className="min-h-screen">
-        <Nav backHref="/" />
+        <Nav />
         <ConfigNotice />
       </main>
     );
