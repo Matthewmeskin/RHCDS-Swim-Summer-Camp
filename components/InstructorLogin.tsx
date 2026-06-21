@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 /**
@@ -8,6 +9,7 @@ import { supabase } from "@/lib/supabaseClient";
  * a hidden login id via the instructor_login_email RPC; the code is the password.
  */
 export default function InstructorLogin() {
+  const router = useRouter();
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
@@ -35,9 +37,9 @@ export default function InstructorLogin() {
         setError("That code doesn't match. Double-check it with the aquatics director.");
         return;
       }
-      const { data: slug } = await supabase.rpc("my_instructor_slug");
-      // Hard navigation so the new session cookie is in effect.
-      window.location.assign(slug ? `/instructor/${slug}` : "/");
+      // The slug is the local-part of the login id — no extra round trip needed.
+      const slug = (loginEmail as string).split("@")[0];
+      router.push(`/instructor/${slug}`);
     } finally {
       setBusy(false);
     }

@@ -27,8 +27,13 @@ export async function middleware(request: NextRequest) {
       loginUrl.searchParams.set("next", pathname);
       return NextResponse.redirect(loginUrl);
     }
-    // Signed in — verify they're actually an admin (allowlist check in the DB).
-    const { data: isAdmin } = await supabase.rpc("is_admin");
+    // Fast path: admins carry a role claim (set on their auth user), so no DB
+    // call is needed. Fall back to the allowlist RPC only if the claim is absent.
+    let isAdmin = user.app_metadata?.role === "admin";
+    if (!isAdmin) {
+      const { data } = await supabase.rpc("is_admin");
+      isAdmin = !!data;
+    }
     if (!isAdmin) {
       const loginUrl = new URL("/admin/login", request.url);
       loginUrl.searchParams.set("denied", "1");
