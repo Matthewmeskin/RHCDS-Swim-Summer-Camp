@@ -9,10 +9,14 @@ import {
   fetchInstructors,
   fetchWeeks,
   fetchAllScheduleSlots,
+  fetchAllOffAvailability,
   type SlotLite,
+  type OffLite,
 } from "@/lib/data";
 import { parseISODate } from "@/lib/format";
 import type { Instructor, Week } from "@/lib/types";
+
+type Metric = "lessons" | "kids";
 
 /** Heatmap tint for a lesson count — denser weeks read darker. */
 function cellClass(count: number): string {
@@ -36,32 +40,64 @@ export default function MasterSchedulePage() {
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [slots, setSlots] = useState<SlotLite[]>([]);
+  const [off, setOff] = useState<OffLite[]>([]);
   const [loading, setLoading] = useState(true);
+  const [metric, setMetric] = useState<Metric>("lessons");
+  const [showOff, setShowOff] = useState(false);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
       setLoading(false);
       return;
     }
-    Promise.all([fetchInstructors(), fetchWeeks(), fetchAllScheduleSlots()])
-      .then(([ins, w, sl]) => {
+    Promise.all([
+      fetchInstructors(),
+      fetchWeeks(),
+      fetchAllScheduleSlots(),
+      fetchAllOffAvailability(),
+    ])
+      .then(([ins, w, sl, of]) => {
         setInstructors(ins);
         setWeeks(w);
         setSlots(sl);
+        setOff(of);
       })
       .finally(() => setLoading(false));
   }, []);
 
-  // counts[`${instructorId}__${weekNumber}`] = number of lessons (kids placed).
+  // counts[`${instructorId}__${weekNumber}`] for the selected metric.
   const counts = useMemo(() => {
     const m = new Map<string, number>();
-    for (const s of slots) {
-      if (!s.instructor_id || s.week_number == null || !s.student_id) continue;
-      const k = `${s.instructor_id}__${s.week_number}`;
+    if (metric === "lessons") {
+      for (const s of slots) {
+        if (!s.instructor_id || s.week_number == null || !s.student_id) continue;
+        const k = `${s.instructor_id}__${s.week_number}`;
+        m.set(k, (m.get(k) ?? 0) + 1);
+      }
+    } else {
+      const seen = new Map<string, Set<string>>();
+      for (const s of slots) {
+        if (!s.instructor_id || s.week_number == null || !s.student_id) continue;
+        const k = `${s.instructor_id}__${s.week_number}`;
+        const set = seen.get(k) ?? new Set<string>();
+        set.add(s.student_id);
+        seen.set(k, set);
+      }
+      seen.forEach((set, k) => m.set(k, set.size));
+    }
+    return m;
+  }, [slots, metric]);
+
+  // offCounts[`${instructorId}__${weekNumber}`] = number of off slots that week.
+  const offCounts = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const o of off) {
+      if (!o.instructor_id || o.week_number == null) continue;
+      const k = `${o.instructor_id}__${o.week_number}`;
       m.set(k, (m.get(k) ?? 0) + 1);
     }
     return m;
-  }, [slots]);
+  }, [off]);
 
   const rowTotal = (id: string) =>
     weeks.reduce((sum, w) => sum + (counts.get(`${id}__${w.week_number}`) ?? 0), 0);
@@ -132,14 +168,46 @@ export default function MasterSchedulePage() {
               />
             </div>
 
+            {/* Controls: metric toggle + time-off overlay */}
+            <div className="mt-4 flex flex-wrap items-center gap-3">
+              <div className="inline-flex overflow-hidden rounded-full border-2 border-brand-green">
+                {(["lessons", "kids"] as Metric[]).map((m) => (
+                  <button
+                    key={m}
+                    onClick={() => setMetric(m)}
+                    className={`px-4 py-1.5 text-sm font-bold capitalize transition ${
+                      metric === m ? "bg-brand-green text-white" : "bg-white text-brand-green"
+                    }`}
+                  >
+                    {m}
+                  </button>
+                ))}
+              </div>
+              <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-brand-text">
+                <input
+                  type="checkbox"
+                  checked={showOff}
+                  onChange={(e) => setShowOff(e.target.checked)}
+                  className="h-4 w-4 accent-brand-orange"
+                />
+                Show time off
+              </label>
+            </div>
+
             {/* Legend + scroll hint */}
-            <div className="mt-4 flex flex-wrap items-center gap-2 text-xs text-brand-text/60">
-              <span className="font-semibold">Lessons / week:</span>
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-brand-text/60">
+              <span className="font-semibold capitalize">{metric} / week:</span>
               <span className="rounded px-2 py-0.5 bg-gray-50 text-brand-text/40">0</span>
               <span className="rounded px-2 py-0.5 bg-brand-green/15 text-brand-green">1–2</span>
               <span className="rounded px-2 py-0.5 bg-brand-green/35 text-brand-green">3–5</span>
               <span className="rounded px-2 py-0.5 bg-brand-green/60 text-white">6–9</span>
               <span className="rounded px-2 py-0.5 bg-brand-green text-white">10+</span>
+              {showOff ? (
+                <span className="flex items-center gap-1">
+                  <span className="inline-block h-2 w-2 rounded-full bg-brand-orange" />
+                  has time off
+                </span>
+              ) : null}
               <span className="ml-auto italic text-brand-text/40 sm:hidden">swipe sideways →</span>
             </div>
 
@@ -194,14 +262,22 @@ export default function MasterSchedulePage() {
                         </th>
                         {weeks.map((w) => {
                           const c = counts.get(`${ins.id}__${w.week_number}`) ?? 0;
+                          const offN = offCounts.get(`${ins.id}__${w.week_number}`) ?? 0;
                           const isHi = highlight?.wk === w.week_number;
-                          const inner = (
-                            <span className="block h-full w-full">{c === 0 ? "—" : c}</span>
-                          );
+                          const offDot =
+                            showOff && offN > 0 ? (
+                              <span className="absolute right-1 top-1 rounded-full bg-brand-orange px-1 text-[9px] font-bold leading-tight text-white">
+                                {offN}
+                              </span>
+                            ) : null;
+                          const inner = <span className="block h-full w-full">{c === 0 ? "—" : c}</span>;
+                          const title = `${ins.name} — Week ${w.week_number}: ${c} ${metric}${
+                            offN > 0 ? ` · ${offN} time(s) off` : ""
+                          }`;
                           return (
                             <td
                               key={w.week_number}
-                              className={`border-l border-t border-brand-green/10 p-0 text-center font-semibold ${cellClass(c)} ${
+                              className={`relative border-l border-t border-brand-green/10 p-0 text-center font-semibold ${cellClass(c)} ${
                                 isHi ? "ring-2 ring-inset ring-brand-orange/50" : ""
                               }`}
                             >
@@ -209,13 +285,14 @@ export default function MasterSchedulePage() {
                                 <Link
                                   href={`/instructor/${ins.slug}?week=${w.week_number}`}
                                   className="block px-2 py-2 transition hover:brightness-95"
-                                  title={`${ins.name} — Week ${w.week_number}: ${c} lesson${c === 1 ? "" : "s"}`}
+                                  title={title}
                                 >
                                   {inner}
                                 </Link>
                               ) : (
-                                <div className="px-2 py-2">{inner}</div>
+                                <div className="px-2 py-2" title={title}>{inner}</div>
                               )}
+                              {offDot}
                             </td>
                           );
                         })}
