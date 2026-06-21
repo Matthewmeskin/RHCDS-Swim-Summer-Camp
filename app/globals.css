@@ -53,14 +53,23 @@
   }
 }
 
-/* ---- Camp loader: logo bobbing on water ripples ---- */
+/* ---- Camp loader: logo bobbing on splashy water ripples ---- */
 @keyframes camp-bob {
   0%, 100% { transform: translateY(0) rotate(-3deg); }
   50% { transform: translateY(-10px) rotate(3deg); }
 }
+/* Rings expand outward and squash a little, like a real water ring. */
 @keyframes camp-ripple {
-  0% { transform: translateX(-50%) scale(0.4); opacity: 0.55; }
-  100% { transform: translateX(-50%) scale(1.5); opacity: 0; }
+  0%   { transform: translateX(-50%) scale(0.35, 0.5); opacity: 0.6; }
+  60%  { opacity: 0.3; }
+  100% { transform: translateX(-50%) scale(1.7, 1.2); opacity: 0; }
+}
+/* Bubbles rise, drift, and pop. */
+@keyframes camp-bubble {
+  0%   { transform: translate(0, 0) scale(0.5); opacity: 0; }
+  20%  { opacity: 0.95; }
+  80%  { opacity: 0.8; }
+  100% { transform: translate(var(--drift, 0), -38px) scale(1); opacity: 0; }
 }
 .camp-loader-logo {
   animation: camp-bob 1.9s ease-in-out infinite;
@@ -69,25 +78,38 @@
 .camp-loader-ripple {
   position: absolute;
   left: 50%;
-  bottom: -6px;
+  bottom: -7px;
   height: 14px;
-  width: 72px;
+  width: 74px;
   border-radius: 9999px;
   border: 2.5px solid #6fa0be;
   transform: translateX(-50%);
   animation: camp-ripple 1.9s ease-out infinite;
 }
-.camp-loader-ripple-2 {
-  animation-delay: 0.95s;
+.camp-loader-ripple-2 { animation-delay: 0.63s; border-color: #8ec3d8; }
+.camp-loader-ripple-3 { animation-delay: 1.26s; border-color: #407a5b; }
+.camp-bubble {
+  position: absolute;
+  bottom: 4px;
+  height: 8px;
+  width: 8px;
+  border-radius: 9999px;
+  background: #8ec3d8;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.6);
+  opacity: 0;
+  animation: camp-bubble 1.9s ease-in infinite;
 }
+.camp-bubble-1 { left: 22%; height: 7px;  width: 7px;  --drift: -6px; animation-delay: 0.2s; }
+.camp-bubble-2 { left: 50%; height: 10px; width: 10px; --drift: 4px;  animation-delay: 0.9s; background: #6fa0be; }
+.camp-bubble-3 { left: 74%; height: 6px;  width: 6px;  --drift: 7px;  animation-delay: 1.45s; }
 @media (prefers-reduced-motion: reduce) {
   .camp-loader-logo,
-  .camp-loader-ripple {
+  .camp-loader-ripple,
+  .camp-bubble {
     animation: none;
   }
-  .camp-loader-ripple {
-    opacity: 0.3;
-  }
+  .camp-loader-ripple { opacity: 0.3; }
+  .camp-bubble { display: none; }
 }
 
 /* Print view: clean black & white, hide nav and interactive chrome. */

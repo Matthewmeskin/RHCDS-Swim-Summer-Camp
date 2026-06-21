@@ -38,6 +38,10 @@ export default function CampLoader({ label }: { label?: string }) {
         />
         <span className="camp-loader-ripple" aria-hidden="true" />
         <span className="camp-loader-ripple camp-loader-ripple-2" aria-hidden="true" />
+        <span className="camp-loader-ripple camp-loader-ripple-3" aria-hidden="true" />
+        <span className="camp-bubble camp-bubble-1" aria-hidden="true" />
+        <span className="camp-bubble camp-bubble-2" aria-hidden="true" />
+        <span className="camp-bubble camp-bubble-3" aria-hidden="true" />
       </div>
       <p className="mt-5 font-display text-lg text-brand-green">{label ?? MESSAGES[i]}</p>
       <span className="sr-only">Loading</span>
