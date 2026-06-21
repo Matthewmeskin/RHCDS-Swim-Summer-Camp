@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Nav from "@/components/Nav";
@@ -38,9 +38,6 @@ function levelPill(level: string | null): string {
     default: return "bg-gray-400 text-white";
   }
 }
-function initials(s: Student): string {
-  return `${s.first_name.charAt(0)}${s.last_name.charAt(0)}`.toUpperCase();
-}
 
 /** Heatmap tint for a lesson count — denser weeks read darker. */
 function cellClass(count: number): string {
@@ -77,8 +74,19 @@ export default function MasterSchedulePage() {
   const [picker, setPicker] = useState<{ instructorId: string; date: string; hhmm: string } | null>(null);
   const [pickQuery, setPickQuery] = useState("");
   const [saving, setSaving] = useState(false);
-  const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(null);
+  const [toast, setToast] = useState<{ msg: string; kind: ToastKind; undo?: () => void } | null>(null);
   const [gQuery, setGQuery] = useState("");
+
+  // ----- Drag-and-drop (build mode): move a camper between cells -----
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+  const [ghost, setGhost] = useState<{ x: number; y: number; label: string } | null>(null);
+  const dragRef = useRef<{ id: string; fromKey: string; startX: number; startY: number; active: boolean } | null>(null);
+  const dragOverRef = useRef<string | null>(null);
+  const pointerPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const autoScrollRaf = useRef<number | null>(null);
+  const assignmentsRef = useRef<Record<string, string[]>>({});
+  const studentsByIdRef = useRef<Map<string, Student>>(new Map());
   const router = useRouter();
 
   useEffect(() => {
@@ -248,6 +256,97 @@ export default function MasterSchedulePage() {
       setSaving(false);
     }
   }
+
+  function toastWithUndo(msg: string, kind: ToastKind, snapshot: Record<string, string[]>) {
+    setToast({
+      msg,
+      kind,
+      undo: () => {
+        setAssignments(snapshot);
+        setToast({ msg: "Undone ✓", kind: "success" });
+      },
+    });
+  }
+
+  function moveAssignmentFromTo(fromKey: string, id: string, toKey: string) {
+    if (fromKey === toKey) return;
+    const snapshot = structuredClone(assignmentsRef.current);
+    setAssignments((prev) => {
+      const toList = prev[toKey] ?? [];
+      const next: Record<string, string[]> = { ...prev, [fromKey]: (prev[fromKey] ?? []).filter((x) => x !== id) };
+      if (!toList.includes(id)) next[toKey] = [...toList, id];
+      return next;
+    });
+    const nm = studentsByIdRef.current.get(id);
+    toastWithUndo(`Moved ${nm ? nm.first_name : "camper"} — tap Undo`, "success", snapshot);
+  }
+
+  function startChipDrag(e: React.PointerEvent, fromKey: string, id: string) {
+    if (!building || (e.button && e.button !== 0)) return;
+    dragRef.current = { id, fromKey, startX: e.clientX, startY: e.clientY, active: false };
+  }
+
+  useEffect(() => { assignmentsRef.current = assignments; }, [assignments]);
+  useEffect(() => { studentsByIdRef.current = studentsById; }, [studentsById]);
+
+  useEffect(() => {
+    function autoScrollTick() {
+      autoScrollRaf.current = requestAnimationFrame(autoScrollTick);
+      if (!dragRef.current?.active) return;
+      const { x, y } = pointerPosRef.current;
+      const margin = 72;
+      const speed = 14;
+      if (y < margin) window.scrollBy(0, -speed);
+      else if (y > window.innerHeight - margin) window.scrollBy(0, speed);
+      const scroller = (document.elementFromPoint(x, y) as HTMLElement | null)?.closest("[data-hscroll]") as HTMLElement | null;
+      if (scroller) {
+        const r = scroller.getBoundingClientRect();
+        if (x < r.left + margin) scroller.scrollLeft -= speed;
+        else if (x > r.right - margin) scroller.scrollLeft += speed;
+      }
+    }
+    function move(e: PointerEvent) {
+      const d = dragRef.current;
+      if (!d) return;
+      pointerPosRef.current = { x: e.clientX, y: e.clientY };
+      if (!d.active) {
+        if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 6) return;
+        d.active = true;
+        setDraggingId(d.id);
+        const s = studentsByIdRef.current.get(d.id);
+        setGhost({ x: e.clientX, y: e.clientY, label: s ? `${s.first_name} ${s.last_name}` : "" });
+        document.body.style.userSelect = "none";
+        if (autoScrollRaf.current == null) autoScrollRaf.current = requestAnimationFrame(autoScrollTick);
+      } else {
+        setGhost((g) => (g ? { ...g, x: e.clientX, y: e.clientY } : g));
+      }
+      e.preventDefault();
+      const cell = (document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null)?.closest("[data-cell]")?.getAttribute("data-cell") ?? null;
+      dragOverRef.current = cell;
+      setDragOverKey(cell);
+    }
+    function end() {
+      const d = dragRef.current;
+      dragRef.current = null;
+      if (autoScrollRaf.current != null) { cancelAnimationFrame(autoScrollRaf.current); autoScrollRaf.current = null; }
+      setDraggingId(null);
+      setGhost(null);
+      document.body.style.userSelect = "";
+      const toKey = dragOverRef.current;
+      dragOverRef.current = null;
+      setDragOverKey(null);
+      if (d?.active && toKey) moveAssignmentFromTo(d.fromKey, d.id, toKey);
+    }
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   if (!isSupabaseConfigured) {
     return (
@@ -451,6 +550,9 @@ export default function MasterSchedulePage() {
                 building={building}
                 onAdd={(instructorId, date, hh) => { setPicker({ instructorId, date, hhmm: hh }); setPickQuery(""); }}
                 onRemove={removeKid}
+                dragOverKey={dragOverKey}
+                draggingId={draggingId}
+                onChipPointerDown={startChipDrag}
               />
             )}
           </>
@@ -523,7 +625,23 @@ export default function MasterSchedulePage() {
         />
       ) : null}
 
-      {toast ? <Toast message={toast.msg} kind={toast.kind} onDismiss={() => setToast(null)} /> : null}
+      {ghost ? (
+        <div
+          className="pointer-events-none fixed z-[60] -translate-x-1/2 -translate-y-1/2 rounded-md bg-brand-green px-2 py-1 text-xs font-bold text-white shadow-lg"
+          style={{ left: ghost.x, top: ghost.y }}
+        >
+          {ghost.label}
+        </div>
+      ) : null}
+
+      {toast ? (
+        <Toast
+          message={toast.msg}
+          kind={toast.kind}
+          onDismiss={() => setToast(null)}
+          action={toast.undo ? { label: "Undo", onClick: toast.undo } : undefined}
+        />
+      ) : null}
     </main>
   );
 }
@@ -730,7 +848,7 @@ function Overview(props: {
 
 function WeekGrid({
   weekNumber, days, instructors, kidsByCell, offByCell, studentsById, onPick, showOff,
-  building = false, onAdd, onRemove,
+  building = false, onAdd, onRemove, dragOverKey, draggingId, onChipPointerDown,
 }: {
   weekNumber: number;
   days: string[];
@@ -743,13 +861,16 @@ function WeekGrid({
   building?: boolean;
   onAdd?: (instructorId: string, date: string, hh: string) => void;
   onRemove?: (instructorId: string, date: string, hh: string, studentId: string) => void;
+  dragOverKey?: string | null;
+  draggingId?: string | null;
+  onChipPointerDown?: (e: React.PointerEvent, cellKey: string, studentId: string) => void;
 }) {
   // Header is not sticky-top: the page Nav is already sticky (z-30) and an
   // additional top-sticky header collides with it. Only the left column sticks.
   const cornerCls = "sticky left-0 z-20";
 
   return (
-    <div className="overflow-x-auto rounded-xl border border-brand-green/15">
+    <div className="overflow-x-auto rounded-xl border border-brand-green/15" data-hscroll>
       <table className="w-full border-collapse text-sm">
         <thead>
           <tr>
@@ -800,15 +921,23 @@ function WeekGrid({
                     return (
                       <td
                         key={key}
+                        data-cell={building ? key : undefined}
                         className={`min-w-[44px] border-t border-brand-green/10 p-1 align-top ${
                           i === 0 ? "border-l-2 border-brand-green/20" : "border-l border-brand-green/10"
-                        } ${offEmpty ? "bg-brand-orange/10" : kids.length === 0 && !building ? "bg-gray-50" : ""}`}
+                        } ${
+                          building && dragOverKey === key
+                            ? "bg-brand-aqua/30 ring-2 ring-inset ring-brand-green"
+                            : offEmpty ? "bg-brand-orange/10" : kids.length === 0 && !building ? "bg-gray-50" : ""
+                        }`}
                       >
                         <KidPills
                           kids={kids}
                           offEmpty={offEmpty}
                           onPick={onPick}
                           onRemove={building && onRemove ? (s) => onRemove(ins.id, d, hhmm(t), s.id) : undefined}
+                          cellKey={key}
+                          draggingId={draggingId}
+                          onChipPointerDown={building ? onChipPointerDown : undefined}
                         />
                         {building && onAdd ? (
                           <button
@@ -859,8 +988,11 @@ function AllWeeksDetail(props: {
   building: boolean;
   onAdd: (instructorId: string, date: string, hh: string) => void;
   onRemove: (instructorId: string, date: string, hh: string, studentId: string) => void;
+  dragOverKey?: string | null;
+  draggingId?: string | null;
+  onChipPointerDown?: (e: React.PointerEvent, cellKey: string, studentId: string) => void;
 }) {
-  const { instructors, weeks, kidsByCell, offByCell, studentsById, onPick, showOff, setShowOff, building, onAdd, onRemove } = props;
+  const { instructors, weeks, kidsByCell, offByCell, studentsById, onPick, showOff, setShowOff, building, onAdd, onRemove, dragOverKey, draggingId, onChipPointerDown } = props;
 
   return (
     <>
@@ -901,6 +1033,9 @@ function AllWeeksDetail(props: {
                 building={building}
                 onAdd={onAdd}
                 onRemove={onRemove}
+                dragOverKey={dragOverKey}
+                draggingId={draggingId}
+                onChipPointerDown={onChipPointerDown}
               />
             </section>
           );
@@ -918,12 +1053,15 @@ function AllWeeksDetail(props: {
 /* ------------------------- Shared kid pills & legend --------------------- */
 
 function KidPills({
-  kids, offEmpty, onPick, onRemove,
+  kids, offEmpty, onPick, onRemove, cellKey, draggingId, onChipPointerDown,
 }: {
   kids: Student[];
   offEmpty: boolean;
   onPick: (s: Student) => void;
   onRemove?: (s: Student) => void;
+  cellKey?: string;
+  draggingId?: string | null;
+  onChipPointerDown?: (e: React.PointerEvent, cellKey: string, studentId: string) => void;
 }) {
   if (kids.length === 0) {
     return onRemove ? null : (
@@ -936,17 +1074,20 @@ function KidPills({
     <div className="flex flex-col gap-0.5">
       {kids.map((s) => {
         const grp = groupByLevel(s.group_level);
+        const canDrag = Boolean(onChipPointerDown && cellKey);
         return (
           <span
             key={s.id}
-            className={`flex items-center justify-between gap-0.5 rounded px-1 py-0.5 text-[11px] font-bold leading-tight ${levelPill(s.level)}`}
+            onPointerDown={canDrag ? (e) => onChipPointerDown!(e, cellKey!, s.id) : undefined}
+            style={canDrag ? { touchAction: "none" } : undefined}
+            className={`flex items-center justify-between gap-0.5 rounded px-1 py-0.5 text-[11px] font-bold leading-tight ${levelPill(s.level)} ${canDrag ? "cursor-grab active:cursor-grabbing" : ""} ${draggingId === s.id ? "opacity-40" : ""}`}
           >
             <button
               onClick={() => onPick(s)}
               title={`${s.first_name} ${s.last_name}${grp ? ` · ${grp.emoji} ${grp.name}` : ""}${s.level ? ` · ${s.level}` : ""} — tap for details`}
-              className="flex-1 truncate text-center transition hover:brightness-90"
+              className="flex-1 truncate text-left transition hover:brightness-90"
             >
-              {grp ? `${grp.emoji} ` : ""}{initials(s)}
+              {grp ? `${grp.emoji} ` : ""}{s.first_name} {s.last_name}
             </button>
             {onRemove ? (
               <button onClick={() => onRemove(s)} aria-label="Remove" className="shrink-0 rounded px-0.5 leading-none hover:bg-black/20">
