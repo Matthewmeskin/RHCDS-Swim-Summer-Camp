@@ -1,16 +1,20 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import ConfigNotice from "@/components/ConfigNotice";
+import TodayPanel, { type TodoItem } from "@/components/TodayPanel";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import {
   fetchAdminStats,
   fetchUnmatchedNames,
   fetchDefaultWeekNumber,
+  fetchInstructors,
+  fetchAvailabilitySubmissions,
   pendingRequestCount,
   type AdminStats,
+  type Instructor,
 } from "@/lib/data";
 
 const WEEK_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -20,6 +24,10 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [unmatched, setUnmatched] = useState<string[]>([]);
   const [pendingReqs, setPendingReqs] = useState(0);
+  const [instructors, setInstructors] = useState<Instructor[]>([]);
+  const [subs, setSubs] = useState<Record<string, string>>({});
+  const [instrLoaded, setInstrLoaded] = useState(false);
+  const [subsLoaded, setSubsLoaded] = useState(false);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
@@ -29,13 +37,69 @@ export default function AdminDashboard() {
       })
       .catch(() => {});
     pendingRequestCount().then(setPendingReqs).catch(() => {});
+    fetchInstructors()
+      .then(setInstructors)
+      .catch(() => {})
+      .finally(() => setInstrLoaded(true));
   }, []);
 
   useEffect(() => {
     if (!isSupabaseConfigured) return;
     fetchAdminStats(week).then(setStats).catch(() => {});
     fetchUnmatchedNames(week).then(setUnmatched).catch(() => {});
+    setSubsLoaded(false);
+    fetchAvailabilitySubmissions(week)
+      .then(setSubs)
+      .catch(() => {})
+      .finally(() => setSubsLoaded(true));
   }, [week]);
+
+  // "Today" to-do list — only what genuinely needs the director's attention.
+  const todoItems = useMemo<TodoItem[]>(() => {
+    const out: TodoItem[] = [];
+    if (pendingReqs > 0) {
+      out.push({
+        key: "reqs",
+        icon: "📥",
+        title: `${pendingReqs} availability request${pendingReqs === 1 ? "" : "s"} waiting`,
+        desc: "Approve or deny instructor changes",
+        href: "/admin/requests",
+      });
+    }
+    const active = instructors.filter((i) => i.active !== false);
+    const noCode = active.filter((i) => !i.access_code).length;
+    if (noCode > 0) {
+      out.push({
+        key: "codes",
+        icon: "🔑",
+        title: `${noCode} instructor${noCode === 1 ? "" : "s"} can't log in yet`,
+        desc: "Set up access codes so they can sign in",
+        href: "/admin/instructors",
+      });
+    }
+    const notSet = active.filter((i) => !subs[i.id]).length;
+    if (notSet > 0) {
+      out.push({
+        key: "avail",
+        icon: "📋",
+        title: `${notSet} haven't set Week ${week} availability`,
+        desc: "Send a reminder from Instructor Access",
+        href: "/admin/instructors",
+      });
+    }
+    if (unmatched.length > 0) {
+      out.push({
+        key: "unmatched",
+        icon: "🔗",
+        title: `${unmatched.length} schedule name${unmatched.length === 1 ? "" : "s"} don't match a camper`,
+        desc: "Fix names so their schedule links up",
+        href: "/admin/roster",
+      });
+    }
+    return out;
+  }, [pendingReqs, instructors, subs, week, unmatched]);
+
+  const todayLoading = !instrLoaded || !subsLoaded;
 
   if (!isSupabaseConfigured) {
     return (
@@ -72,6 +136,9 @@ export default function AdminDashboard() {
             ))}
           </select>
         </div>
+
+        {/* Today — what needs the director's attention right now */}
+        <TodayPanel items={todoItems} loading={todayLoading} />
 
         {/* Pending availability requests */}
         <Link
