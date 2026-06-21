@@ -6,7 +6,6 @@ import { fetchInstructors, fetchAllStudents } from "@/lib/data";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { groupByLevel } from "@/lib/groups";
 import type { Instructor, Student } from "@/lib/types";
-import StudentModal from "@/components/StudentModal";
 
 /**
  * System-wide search. Mounts in the Nav and is available on every admin page.
@@ -23,7 +22,6 @@ export default function GlobalSearch() {
   const [loaded, setLoaded] = useState(false);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
-  const [selected, setSelected] = useState<Student | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const load = useCallback(async () => {
@@ -73,6 +71,11 @@ export default function GlobalSearch() {
   function pickInstructor(i: Instructor) {
     setOpen(false);
     if (i.slug) router.push(`/instructor/${i.slug}`);
+  }
+
+  function pickCamper(s: Student) {
+    setOpen(false);
+    router.push(`/admin/camper?id=${s.id}`);
   }
 
   return (
@@ -130,7 +133,7 @@ export default function GlobalSearch() {
                   return (
                     <li key={s.id}>
                       <button
-                        onClick={() => setSelected(s)}
+                        onClick={() => pickCamper(s)}
                         className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-brand-sand"
                       >
                         {g ? (
@@ -162,18 +165,6 @@ export default function GlobalSearch() {
             )}
           </div>
         </div>
-      ) : null}
-
-      {selected ? (
-        <StudentModal
-          student={selected}
-          adminEdit
-          onClose={() => setSelected(null)}
-          onSaved={(u) => {
-            setSelected(u);
-            setStudents((prev) => prev.map((s) => (s.id === u.id ? u : s)));
-          }}
-        />
       ) : null}
     </>
   );

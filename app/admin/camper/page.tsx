@@ -3,16 +3,18 @@
 import { useEffect, useMemo, useState } from "react";
 import Nav from "@/components/Nav";
 import ConfigNotice from "@/components/ConfigNotice";
+import StudentModal from "@/components/StudentModal";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import {
   fetchAllStudents,
+  fetchInstructors,
   fetchWeeks,
   fetchCamperSchedule,
   type CamperLessonRow,
 } from "@/lib/data";
 import { formatDayHeader, formatSlotLabel, parseISODate } from "@/lib/format";
 import { groupByLevel } from "@/lib/groups";
-import type { Student, Week } from "@/lib/types";
+import type { Instructor, Student, Week } from "@/lib/types";
 
 const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function weekRange(w?: Week): string {
@@ -24,6 +26,7 @@ function weekRange(w?: Week): string {
 
 export default function CamperSchedulePage() {
   const [students, setStudents] = useState<Student[]>([]);
+  const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Student | null>(null);
@@ -31,18 +34,28 @@ export default function CamperSchedulePage() {
   const [weekFilter, setWeekFilter] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingSched, setLoadingSched] = useState(false);
+  const [editing, setEditing] = useState(false);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
       setLoading(false);
       return;
     }
-    Promise.all([fetchAllStudents(), fetchWeeks()])
-      .then(([s, w]) => {
-        setStudents(s.filter((x) => x.active !== false));
+    Promise.all([fetchAllStudents(), fetchWeeks(), fetchInstructors()])
+      .then(([s, w, ins]) => {
+        const active = s.filter((x) => x.active !== false);
+        setStudents(active);
         setWeeks(w);
+        setInstructors(ins);
+        // Deep link: /admin/camper?id=<studentId> preselects that camper.
+        const id = new URLSearchParams(window.location.search).get("id");
+        if (id) {
+          const match = active.find((x) => x.id === id) ?? s.find((x) => x.id === id);
+          if (match) pick(match);
+        }
       })
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function pick(s: Student) {
@@ -142,13 +155,37 @@ export default function CamperSchedulePage() {
                   {selected.level ? ` · ${selected.level}` : ""}
                 </p>
               </div>
-              <button
-                onClick={() => window.print()}
-                className="camp-btn no-print px-5 py-2 text-sm"
-              >
-                🖨️ Print / Save as PDF
-              </button>
+              <div className="no-print flex gap-2">
+                <button onClick={() => setEditing(true)} className="camp-btn-ghost px-4 py-2 text-sm">
+                  ✏️ Edit details
+                </button>
+                <button onClick={() => window.print()} className="camp-btn px-5 py-2 text-sm">
+                  🖨️ Print / Save as PDF
+                </button>
+              </div>
             </div>
+
+            {/* Full profile */}
+            <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-3">
+              <Field label="Swim group" value={grp ? `${grp.emoji} ${grp.name}` : "—"} />
+              <Field label="Ability level" value={selected.level ?? "—"} />
+              <Field label="Age" value={selected.age != null ? String(selected.age) : "—"} />
+              <Field label="Gender" value={selected.gender ?? "—"} />
+              <Field
+                label="Preferred instructor"
+                value={instructors.find((i) => i.id === selected.preferred_instructor_id)?.name ?? "—"}
+              />
+              <Field
+                label="Special needs"
+                value={selected.special_needs ? "⚠️ Yes" : "No"}
+                highlight={selected.special_needs}
+              />
+              <Field className="col-span-2 sm:col-span-3" label="Goals" value={selected.goals || "—"} />
+              <Field className="col-span-2 sm:col-span-3" label="Parent notes" value={selected.parent_notes || "—"} />
+              <Field className="col-span-2 sm:col-span-3" label="Staff notes" value={selected.staff_notes || "—"} />
+            </dl>
+
+            <h3 className="mt-6 font-display text-2xl text-brand-green">Schedule</h3>
 
             {/* Week toggle (only weeks the camper has lessons in) */}
             {lessons.length > 0 ? (
@@ -235,10 +272,43 @@ export default function CamperSchedulePage() {
           </section>
         ) : (
           <p className="no-print mt-8 text-center text-sm text-brand-text/50">
-            Search for a camper above to view their schedule.
+            Search for a camper above to view their full profile and schedule.
           </p>
         )}
       </div>
+
+      {editing && selected ? (
+        <StudentModal
+          student={selected}
+          adminEdit
+          onClose={() => setEditing(false)}
+          onSaved={(u) => {
+            setSelected(u);
+            setStudents((prev) => prev.map((s) => (s.id === u.id ? u : s)));
+          }}
+        />
+      ) : null}
     </main>
+  );
+}
+
+function Field({
+  label,
+  value,
+  className = "",
+  highlight = false,
+}: {
+  label: string;
+  value: string;
+  className?: string;
+  highlight?: boolean;
+}) {
+  return (
+    <div className={className}>
+      <dt className="text-[11px] font-bold uppercase tracking-wide text-brand-text/50">{label}</dt>
+      <dd className={`mt-0.5 text-sm ${highlight ? "font-bold text-brand-orange" : "text-brand-text"} whitespace-pre-wrap`}>
+        {value}
+      </dd>
+    </div>
   );
 }

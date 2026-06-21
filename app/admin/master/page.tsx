@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import Nav from "@/components/Nav";
 import ConfigNotice from "@/components/ConfigNotice";
 import StudentModal from "@/components/StudentModal";
@@ -77,6 +78,7 @@ export default function MasterSchedulePage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(null);
   const [gQuery, setGQuery] = useState("");
+  const router = useRouter();
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -319,7 +321,7 @@ export default function MasterSchedulePage() {
                   return (
                     <li key={s.id}>
                       <button
-                        onClick={() => { setSelected(s); setGQuery(""); }}
+                        onClick={() => { setGQuery(""); router.push(`/admin/camper?id=${s.id}`); }}
                         className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-brand-sand"
                       >
                         {g ? (
