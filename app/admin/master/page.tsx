@@ -4,24 +4,39 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Nav from "@/components/Nav";
 import ConfigNotice from "@/components/ConfigNotice";
+import StudentModal from "@/components/StudentModal";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import {
   fetchInstructors,
   fetchWeeks,
   fetchAllScheduleSlots,
   fetchAllOffAvailability,
+  fetchAllStudents,
   type SlotLite,
   type OffLite,
 } from "@/lib/data";
 import { parseISODate, formatDayHeader, formatSlotLabel } from "@/lib/format";
 import { getWeekDays } from "@/lib/builder";
-import type { Instructor, Week } from "@/lib/types";
+import type { Instructor, Student, Week } from "@/lib/types";
 
 type Metric = "lessons" | "kids";
 type View = "overview" | "detail";
 
 const SLOT_TIMES = ["16:30:00", "17:00:00", "17:30:00"];
 const hhmm = (t: string) => t.slice(0, 5);
+
+function levelPill(level: string | null): string {
+  switch (level) {
+    case "Non-Swimmer": return "bg-brand-orange text-white";
+    case "Beginner": return "bg-brand-yellow text-brand-text";
+    case "Intermediate": return "bg-brand-green text-white";
+    case "Advanced": return "bg-brand-aqua text-brand-text";
+    default: return "bg-gray-400 text-white";
+  }
+}
+function initials(s: Student): string {
+  return `${s.first_name.charAt(0)}${s.last_name.charAt(0)}`.toUpperCase();
+}
 
 /** Heatmap tint for a lesson count — denser weeks read darker. */
 function cellClass(count: number): string {
@@ -46,11 +61,13 @@ export default function MasterSchedulePage() {
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [slots, setSlots] = useState<SlotLite[]>([]);
   const [off, setOff] = useState<OffLite[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<Metric>("lessons");
   const [showOff, setShowOff] = useState(false);
   const [view, setView] = useState<View>("overview");
   const [detailWeek, setDetailWeek] = useState<number>(1);
+  const [selected, setSelected] = useState<Student | null>(null);
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -62,16 +79,24 @@ export default function MasterSchedulePage() {
       fetchWeeks(),
       fetchAllScheduleSlots(),
       fetchAllOffAvailability(),
+      fetchAllStudents(),
     ])
-      .then(([ins, w, sl, of]) => {
+      .then(([ins, w, sl, of, st]) => {
         setInstructors(ins);
         setWeeks(w);
         setSlots(sl);
         setOff(of);
+        setStudents(st);
         if (w[0]) setDetailWeek(w[0].week_number);
       })
       .finally(() => setLoading(false));
   }, []);
+
+  const studentsById = useMemo(() => {
+    const m = new Map<string, Student>();
+    students.forEach((s) => m.set(s.id, s));
+    return m;
+  }, [students]);
 
   // counts[`${instructorId}__${weekNumber}`] for the selected metric (overview).
   const counts = useMemo(() => {
@@ -141,12 +166,12 @@ export default function MasterSchedulePage() {
   const detailWeekObj = weeks.find((w) => w.week_number === detailWeek) ?? null;
   const detailDays = useMemo(() => getWeekDays(detailWeekObj), [detailWeekObj]);
 
-  const detailCounts = useMemo(() => {
-    const m = new Map<string, number>();
+  const detailKids = useMemo(() => {
+    const m = new Map<string, string[]>();
     for (const s of slots) {
       if (s.week_number !== detailWeek || !s.instructor_id || !s.student_id) continue;
       const k = `${s.instructor_id}__${s.lesson_date}__${hhmm(s.start_time)}`;
-      m.set(k, (m.get(k) ?? 0) + 1);
+      (m.get(k) ?? m.set(k, []).get(k)!).push(s.student_id);
     }
     return m;
   }, [slots, detailWeek]);
@@ -231,8 +256,10 @@ export default function MasterSchedulePage() {
                 days={detailDays}
                 detailWeek={detailWeek}
                 setDetailWeek={setDetailWeek}
-                detailCounts={detailCounts}
+                detailKids={detailKids}
                 detailOff={detailOff}
+                studentsById={studentsById}
+                onPick={setSelected}
                 showOff={showOff}
                 setShowOff={setShowOff}
               />
@@ -240,6 +267,8 @@ export default function MasterSchedulePage() {
           </>
         )}
       </div>
+
+      {selected ? <StudentModal student={selected} onClose={() => setSelected(null)} /> : null}
     </main>
   );
 }
@@ -450,14 +479,16 @@ function Detail(props: {
   days: string[];
   detailWeek: number;
   setDetailWeek: (n: number) => void;
-  detailCounts: Map<string, number>;
+  detailKids: Map<string, string[]>;
   detailOff: Set<string>;
+  studentsById: Map<string, Student>;
+  onPick: (s: Student) => void;
   showOff: boolean;
   setShowOff: (b: boolean) => void;
 }) {
   const {
-    instructors, weeks, days, detailWeek, setDetailWeek, detailCounts, detailOff,
-    showOff, setShowOff,
+    instructors, weeks, days, detailWeek, setDetailWeek, detailKids, detailOff,
+    studentsById, onPick, showOff, setShowOff,
   } = props;
 
   return (
@@ -485,6 +516,15 @@ function Detail(props: {
           Show time off
         </label>
         <span className="ml-auto italic text-xs text-brand-text/40 sm:hidden">swipe sideways →</span>
+      </div>
+
+      {/* Level legend */}
+      <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-brand-text/70">
+        <span>Levels:</span>
+        <span className="rounded px-2 py-0.5 bg-brand-orange text-white">Non-Swimmer</span>
+        <span className="rounded px-2 py-0.5 bg-brand-yellow text-brand-text">Beginner</span>
+        <span className="rounded px-2 py-0.5 bg-brand-green text-white">Intermediate</span>
+        <span className="rounded px-2 py-0.5 bg-brand-aqua text-brand-text">Advanced</span>
       </div>
 
       <div className="mt-3 overflow-x-auto rounded-xl border border-brand-green/15">
@@ -543,18 +583,36 @@ function Detail(props: {
                   {days.map((d) =>
                     SLOT_TIMES.map((t, i) => {
                       const key = `${ins.id}__${d}__${hhmm(t)}`;
-                      const c = detailCounts.get(key) ?? 0;
+                      const kids = (detailKids.get(key) ?? [])
+                        .map((id) => studentsById.get(id))
+                        .filter((s): s is Student => Boolean(s));
                       const isOff = detailOff.has(key);
-                      const offEmpty = showOff && isOff && c === 0;
+                      const offEmpty = showOff && isOff && kids.length === 0;
                       return (
                         <td
                           key={key}
-                          className={`border-t border-brand-green/10 p-1.5 text-center font-semibold ${
+                          className={`min-w-[44px] border-t border-brand-green/10 p-1 align-top ${
                             i === 0 ? "border-l-2 border-brand-green/20" : "border-l border-brand-green/10"
-                          } ${offEmpty ? "bg-brand-orange/10 text-brand-orange/60" : cellClass(c)}`}
-                          title={`${ins.name} — ${formatDayHeader(d).day} ${formatSlotLabel(t)}: ${c} kid${c === 1 ? "" : "s"}${isOff ? " · off" : ""}`}
+                          } ${offEmpty ? "bg-brand-orange/10" : kids.length === 0 ? "bg-gray-50" : ""}`}
                         >
-                          {c > 0 ? c : offEmpty ? "off" : "—"}
+                          {kids.length === 0 ? (
+                            <span className={`block text-center text-[11px] ${offEmpty ? "font-bold text-brand-orange/60" : "text-brand-text/30"}`}>
+                              {offEmpty ? "off" : "—"}
+                            </span>
+                          ) : (
+                            <div className="flex flex-col gap-0.5">
+                              {kids.map((s) => (
+                                <button
+                                  key={s.id}
+                                  onClick={() => onPick(s)}
+                                  title={`${s.first_name} ${s.last_name}${s.level ? ` · ${s.level}` : ""} — tap for details`}
+                                  className={`rounded px-1 py-0.5 text-center text-[11px] font-bold leading-tight transition hover:brightness-95 ${levelPill(s.level)}`}
+                                >
+                                  {initials(s)}
+                                </button>
+                              ))}
+                            </div>
+                          )}
                         </td>
                       );
                     })
@@ -567,9 +625,9 @@ function Detail(props: {
       </div>
 
       <p className="mt-2 text-xs text-brand-text/50">
-        Each cell is the number of kids that instructor has at that day &amp; time.
-        Times are {SLOT_TIMES.map((t) => formatSlotLabel(t)).join(" · ")}. Tap an
-        instructor to open their full week.
+        Each pill is a kid (initials, colored by level) at that day &amp; time —
+        <strong> tap a pill for their info &amp; notes</strong>. Times are{" "}
+        {SLOT_TIMES.map((t) => formatSlotLabel(t)).join(" · ")}.
       </p>
     </>
   );
