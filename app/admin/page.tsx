@@ -14,8 +14,8 @@ import {
   fetchAvailabilitySubmissions,
   pendingRequestCount,
   type AdminStats,
-  type Instructor,
 } from "@/lib/data";
+import type { Instructor } from "@/lib/types";
 
 const WEEK_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
 
