@@ -1,16 +1,13 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import Nav from "@/components/Nav";
 import InstructorLogin from "@/components/InstructorLogin";
-import InstructorSelect from "@/components/InstructorSelect";
 import ConfigNotice from "@/components/ConfigNotice";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
-import { fetchInstructors } from "@/lib/data";
-import type { Instructor } from "@/lib/types";
 
 export default function LandingPage() {
   return (
@@ -28,13 +25,6 @@ function Landing() {
       : params.get("login") === "error"
         ? "That login link was invalid or expired. Please request a new one."
         : null;
-
-  // Temporary transition fallback: lets instructors who don't have email sign-in
-  // set up yet still reach their schedule by name. Removed at the Stage 3 cutover.
-  const [instructors, setInstructors] = useState<Instructor[]>([]);
-  useEffect(() => {
-    if (isSupabaseConfigured) fetchInstructors().then(setInstructors).catch(() => {});
-  }, []);
 
   return (
     <main className="min-h-screen">
@@ -70,17 +60,6 @@ function Landing() {
                 </p>
               ) : null}
               <InstructorLogin />
-
-              {instructors.length > 0 ? (
-                <details className="mt-5 text-left">
-                  <summary className="cursor-pointer text-center text-xs font-semibold text-brand-text/50 hover:text-brand-green">
-                    No email sign-in yet? Find your name
-                  </summary>
-                  <div className="mt-3">
-                    <InstructorSelect instructors={instructors} />
-                  </div>
-                </details>
-              ) : null}
             </div>
           </div>
 

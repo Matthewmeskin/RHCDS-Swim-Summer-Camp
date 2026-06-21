@@ -113,7 +113,9 @@ export async function saveSwimLevel(
 /** Staff (instructors) may edit ONLY a student's staff notes. */
 export async function saveStaffNotes(studentId: string, staff_notes: string | null): Promise<void> {
   const db = requireSupabase();
-  const { error } = await db.from("students").update({ staff_notes }).eq("id", studentId);
+  // Routed through a SECURITY DEFINER RPC that authorizes admins, or instructors
+  // for their own students. Direct table writes are blocked by RLS post-lockdown.
+  const { error } = await db.rpc("save_staff_note", { p_student: studentId, p_note: staff_notes });
   if (error) throw error;
 }
 
