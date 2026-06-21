@@ -91,7 +91,7 @@ export default function GlobalSearch() {
       {open ? (
         <div className="fixed inset-0 z-[60] flex items-start justify-center p-4 pt-[10vh]">
           <button aria-label="Close" onClick={() => setOpen(false)} className="absolute inset-0 bg-black/40" />
-          <div className="relative w-full max-w-lg rounded-2xl border-2 border-brand-green bg-brand-cream p-4 shadow-2xl">
+          <div className="relative w-full max-w-lg rounded-2xl border-2 border-brand-green bg-brand-cream p-4 text-brand-text shadow-2xl">
             <input
               ref={inputRef}
               value={query}
