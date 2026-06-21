@@ -54,6 +54,8 @@ export default function ScheduleBuilderPage() {
   const [poolOpen, setPoolOpen] = useState(false);
   const dragRef = useRef<{ id: string; fromKey: string | null; startX: number; startY: number; active: boolean } | null>(null);
   const dragOverRef = useRef<string | null>(null);
+  const pointerPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const autoScrollRaf = useRef<number | null>(null);
   const assignmentsRef = useRef<Record<string, string[]>>({});
   const studentsByIdRef = useRef<Map<string, Student>>(new Map());
 
@@ -255,9 +257,39 @@ export default function ScheduleBuilderPage() {
   }
 
   useEffect(() => {
+    // While dragging near a screen edge, keep scrolling so off-screen times are
+    // reachable (page vertically, the week table horizontally).
+    function autoScrollTick() {
+      autoScrollRaf.current = requestAnimationFrame(autoScrollTick);
+      if (!dragRef.current?.active) return;
+      const { x, y } = pointerPosRef.current;
+      const margin = 72;
+      const speed = 14;
+      if (y < margin) window.scrollBy(0, -speed);
+      else if (y > window.innerHeight - margin) window.scrollBy(0, speed);
+      const scroller = (document.elementFromPoint(x, y) as HTMLElement | null)?.closest(
+        "[data-hscroll]"
+      ) as HTMLElement | null;
+      if (scroller) {
+        const r = scroller.getBoundingClientRect();
+        if (x < r.left + margin) scroller.scrollLeft -= speed;
+        else if (x > r.right - margin) scroller.scrollLeft += speed;
+      }
+    }
+    function startAutoScroll() {
+      if (autoScrollRaf.current == null) autoScrollRaf.current = requestAnimationFrame(autoScrollTick);
+    }
+    function stopAutoScroll() {
+      if (autoScrollRaf.current != null) {
+        cancelAnimationFrame(autoScrollRaf.current);
+        autoScrollRaf.current = null;
+      }
+    }
+
     function move(e: PointerEvent) {
       const d = dragRef.current;
       if (!d) return;
+      pointerPosRef.current = { x: e.clientX, y: e.clientY };
       if (!d.active) {
         if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 6) return;
         d.active = true;
@@ -265,6 +297,7 @@ export default function ScheduleBuilderPage() {
         const s = studentsByIdRef.current.get(d.id);
         setGhost({ x: e.clientX, y: e.clientY, label: s ? `${s.first_name} ${s.last_name.charAt(0)}.` : "" });
         document.body.style.userSelect = "none";
+        startAutoScroll();
       } else {
         setGhost((g) => (g ? { ...g, x: e.clientX, y: e.clientY } : g));
       }
@@ -277,6 +310,7 @@ export default function ScheduleBuilderPage() {
     function end() {
       const d = dragRef.current;
       dragRef.current = null;
+      stopAutoScroll();
       setDraggingId(null);
       setGhost(null);
       document.body.style.userSelect = "";
@@ -289,6 +323,7 @@ export default function ScheduleBuilderPage() {
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);
     return () => {
+      stopAutoScroll();
       window.removeEventListener("pointermove", move);
       window.removeEventListener("pointerup", end);
       window.removeEventListener("pointercancel", end);
@@ -480,7 +515,7 @@ export default function ScheduleBuilderPage() {
                         </button>
                       </div>
                     </div>
-                    <div className="overflow-x-auto">
+                    <div className="overflow-x-auto" data-hscroll>
                       <table className="w-full min-w-[600px] border-collapse">
                         <thead>
                           <tr>
