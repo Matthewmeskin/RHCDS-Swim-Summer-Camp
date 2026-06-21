@@ -1,5 +1,6 @@
 import Image from "next/image";
 import Link from "next/link";
+import GlobalSearch from "@/components/GlobalSearch";
 
 export default function Nav({
   backHref,
@@ -30,13 +31,16 @@ export default function Nav({
             priority
           />
         </Link>
-        <div className="ml-auto text-right">
-          <span className="font-display text-2xl leading-none drop-shadow-sm">
-            Swim Portal
-          </span>
-          {subtitle ? (
-            <span className="block font-body text-xs text-white/80">{subtitle}</span>
-          ) : null}
+        <div className="ml-auto flex items-center gap-3">
+          <GlobalSearch />
+          <div className="text-right">
+            <span className="font-display text-2xl leading-none drop-shadow-sm">
+              Swim Portal
+            </span>
+            {subtitle ? (
+              <span className="block font-body text-xs text-white/80">{subtitle}</span>
+            ) : null}
+          </div>
         </div>
       </div>
     </nav>
