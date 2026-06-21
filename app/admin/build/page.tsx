@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Nav from "@/components/Nav";
 import CampLoader from "@/components/CampLoader";
+import EmptyState from "@/components/EmptyState";
 import LevelBadge from "@/components/LevelBadge";
 import Toast, { type ToastKind } from "@/components/Toast";
 import ConfigNotice from "@/components/ConfigNotice";
@@ -421,7 +422,13 @@ export default function ScheduleBuilderPage() {
         {loading ? (
           <CampLoader />
         ) : !data || data.weeks.length === 0 ? (
-          <p className="mt-10 text-center text-brand-text/60">No weeks set up yet.</p>
+          <EmptyState
+            emoji="🗓️"
+            title="No weeks set up yet"
+            message="Import a weekly schedule grid to get started, then come back here to assign campers to instructors."
+            actionHref="/admin/import/schedule"
+            actionLabel="Import a schedule"
+          />
         ) : (
           <>
             <div className="mt-4 flex flex-wrap items-center gap-3">

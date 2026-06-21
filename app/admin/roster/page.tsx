@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Nav from "@/components/Nav";
 import CampLoader from "@/components/CampLoader";
+import EmptyState from "@/components/EmptyState";
 import LevelBadge from "@/components/LevelBadge";
 import Toast, { type ToastKind } from "@/components/Toast";
 import ConfigNotice from "@/components/ConfigNotice";
@@ -139,7 +140,17 @@ export default function RosterPage() {
           <CampLoader />
         ) : tab === "instructors" ? (
           <ul className="mt-4 divide-y divide-brand-sand rounded-2xl border-2 border-brand-green bg-white">
-            {filteredInstr.map((i) => (
+            {filteredInstr.length === 0 ? (
+              <li className="px-4 py-6">
+                <EmptyState
+                  emoji="🧑‍🏫"
+                  title={query ? "No matches" : "No instructors yet"}
+                  message={query ? "Try a different name." : "Add your first instructor to get started."}
+                  actionLabel={query ? undefined : "+ Add instructor"}
+                  onAction={query ? undefined : () => setEditingInstr({ role: "instructor", active: true, email: null })}
+                />
+              </li>
+            ) : filteredInstr.map((i) => (
               <li key={i.id} className="flex items-center gap-2 px-4 py-2.5">
                 <span className={`font-semibold ${i.active === false ? "text-brand-text/40 line-through" : ""}`}>
                   {i.name}
@@ -162,7 +173,17 @@ export default function RosterPage() {
           </ul>
         ) : (
           <ul className="mt-4 divide-y divide-brand-sand rounded-2xl border-2 border-brand-green bg-white">
-            {filteredStud.map((s) => (
+            {filteredStud.length === 0 ? (
+              <li className="px-4 py-6">
+                <EmptyState
+                  emoji="🧑‍🎓"
+                  title={query ? "No matches" : "No campers yet"}
+                  message={query ? "Try a different name." : "Import your camper roster to get started."}
+                  actionHref={query ? undefined : "/admin/import/students"}
+                  actionLabel={query ? undefined : "Import roster"}
+                />
+              </li>
+            ) : filteredStud.map((s) => (
               <li key={s.id} className="flex items-center gap-2 px-4 py-2.5">
                 {(() => {
                   const g = groupByLevel(s.group_level);

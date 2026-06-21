@@ -5,6 +5,7 @@ import Image from "next/image";
 import Nav from "@/components/Nav";
 import ConfigNotice from "@/components/ConfigNotice";
 import CampLoader from "@/components/CampLoader";
+import EmptyState from "@/components/EmptyState";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { fetchWeekDeck, fetchDefaultWeekNumber, type DeckLesson } from "@/lib/data";
 import { formatDayHeader, formatSlotLabel } from "@/lib/format";
@@ -112,9 +113,13 @@ export default function PoolDeckSheetsPage() {
         {loading ? (
           <CampLoader />
         ) : sheets.length === 0 ? (
-          <p className="mt-10 text-center text-brand-text/60">
-            No lessons scheduled for Week {week} yet.
-          </p>
+          <EmptyState
+            emoji="🏊"
+            title={`Week ${week} isn't scheduled yet`}
+            message="Once you've built this week's lessons, each instructor's pool-deck sheet will appear here, ready to print."
+            actionHref="/admin/build"
+            actionLabel="Build the schedule"
+          />
         ) : (
           sheets.map((s) => <InstructorSheet key={s.id} name={s.name} lessons={s.lessons} week={week} />)
         )}
