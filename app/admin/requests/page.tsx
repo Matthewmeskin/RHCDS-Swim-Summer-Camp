@@ -10,12 +10,9 @@ import {
   decideAvailabilityRequest,
   type AvailabilityRequestRow,
 } from "@/lib/data";
-import { formatDayHeader, formatSlotLabel, formatRelative } from "@/lib/format";
+import { formatOffSlot, formatOffSlots, formatRelative } from "@/lib/format";
 
-function slotLabel(s: { date: string; start: string }) {
-  const { day, date } = formatDayHeader(s.date);
-  return `${day} ${date} · ${formatSlotLabel(s.start)}`;
-}
+const slotLabel = formatOffSlot;
 
 export default function RequestsPage() {
   const [pending, setPending] = useState<AvailabilityRequestRow[]>([]);
@@ -58,6 +55,7 @@ export default function RequestsPage() {
           status: decided.status,
           email: decided.contact_email,
           phone: decided.contact_phone,
+          offSlots: formatOffSlots(decided.off_slots ?? []),
           decisionNote: decided.decision_note,
         }),
       }).catch(() => {});
@@ -177,20 +175,25 @@ export default function RequestsPage() {
                 <h2 className="mb-2 font-display text-2xl text-brand-green">Recent decisions</h2>
                 <ul className="divide-y divide-brand-sand rounded-2xl border-2 border-brand-green bg-white">
                   {recent.map((req) => (
-                    <li key={req.id} className="flex items-center justify-between px-4 py-2.5 text-sm">
-                      <span className="font-semibold">
-                        {req.instructors?.name} · Week {req.week_number}
-                      </span>
-                      <span
-                        className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
-                          req.status === "approved"
-                            ? "bg-brand-green text-white"
-                            : "bg-brand-orange/20 text-brand-orange"
-                        }`}
-                      >
-                        {req.status}
-                        {req.decided_at ? ` · ${formatRelative(req.decided_at)}` : ""}
-                      </span>
+                    <li key={req.id} className="px-4 py-2.5 text-sm">
+                      <div className="flex items-center justify-between">
+                        <span className="font-semibold">
+                          {req.instructors?.name} · Week {req.week_number}
+                        </span>
+                        <span
+                          className={`rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                            req.status === "approved"
+                              ? "bg-brand-green text-white"
+                              : "bg-brand-orange/20 text-brand-orange"
+                          }`}
+                        >
+                          {req.status}
+                          {req.decided_at ? ` · ${formatRelative(req.decided_at)}` : ""}
+                        </span>
+                      </div>
+                      <p className="mt-0.5 text-xs text-brand-text/60">
+                        Requested off: {formatOffSlots(req.off_slots ?? [])}
+                      </p>
                     </li>
                   ))}
                 </ul>

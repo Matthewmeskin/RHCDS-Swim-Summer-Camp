@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { formatDayHeader, formatSlotLabel } from "@/lib/format";
+import { formatDayHeader, formatSlotLabel, formatOffSlots } from "@/lib/format";
 import { createAvailabilityRequest } from "@/lib/data";
 
 const SLOT_TIMES = ["16:30:00", "17:00:00", "17:30:00"];
@@ -81,6 +81,7 @@ export default function AvailabilityEditor({
           slug: instructorSlug,
           week: weekNumber,
           offCount: off.size,
+          offSlots: formatOffSlots(offSlots),
           email: email.trim() || null,
           phone: phone.trim() || null,
           note: message.trim() || null,

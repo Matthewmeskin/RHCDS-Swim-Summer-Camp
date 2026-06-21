@@ -27,6 +27,18 @@ export function formatSlotLabel(time: string): string {
   return `${h12}:${m}`;
 }
 
+/** "Mon Jun 22 · 4:30" — one off-slot rendered for humans (email, pills). */
+export function formatOffSlot(s: { date: string; start: string }): string {
+  const { day, date } = formatDayHeader(s.date);
+  return `${day} ${date} · ${formatSlotLabel(s.start)}`;
+}
+
+/** Joins off-slots into one readable line, or a friendly fallback if none. */
+export function formatOffSlots(slots: { date: string; start: string }[]): string {
+  if (!slots || slots.length === 0) return "No specific times — fully available";
+  return slots.map(formatOffSlot).join(", ");
+}
+
 /** Returns [start, end] hour/minute numbers for ics. */
 export function timeParts(time: string): { h: number; m: number } {
   const [h, m] = time.split(":").map((n) => parseInt(n, 10));
