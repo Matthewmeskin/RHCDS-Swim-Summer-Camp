@@ -51,7 +51,8 @@ export default function ScheduleBuilderPage() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number; label: string } | null>(null);
-  const dragRef = useRef<{ id: string; fromKey: string; startX: number; startY: number; active: boolean } | null>(null);
+  const [poolOpen, setPoolOpen] = useState(false);
+  const dragRef = useRef<{ id: string; fromKey: string | null; startX: number; startY: number; active: boolean } | null>(null);
   const dragOverRef = useRef<string | null>(null);
   const assignmentsRef = useRef<Record<string, string[]>>({});
   const studentsByIdRef = useRef<Map<string, Student>>(new Map());
@@ -176,6 +177,16 @@ export default function ScheduleBuilderPage() {
     return data.students.filter((s) => !placedCount.get(s.id)).length;
   }, [data, placedCount]);
 
+  // Active campers not placed with anyone all summer — draggable into the grid.
+  const unplacedStudents = useMemo(() => {
+    if (!data) return [];
+    return data.students
+      .filter((s) => s.active !== false && !placedCount.get(s.id))
+      .sort((a, b) =>
+        `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
+      );
+  }, [data, placedCount]);
+
   // Students / last names already with the selected instructor (any week).
   const withInstructor = useMemo(() => {
     const ids = new Set<string>();
@@ -216,18 +227,20 @@ export default function ScheduleBuilderPage() {
     toastWithUndo(`Removed ${nm ? nm.first_name : "camper"} — tap Undo to put back`, "success", snapshot);
   }
 
-  // Move a camper between slots (pointer drag works for both mouse and touch).
-  function moveAssignmentFromTo(fromKey: string, id: string, toKey: string) {
+  // Move a camper between slots, or add from the "needs a spot" pool when
+  // fromKey is null. Pointer drag works for both mouse and touch.
+  function moveAssignmentFromTo(fromKey: string | null, id: string, toKey: string) {
     if (fromKey === toKey) return;
     const snapshot = structuredClone(assignmentsRef.current);
     setAssignments((prev) => {
-      const fromList = (prev[fromKey] ?? []).filter((x) => x !== id);
       const toList = prev[toKey] ?? [];
-      if (toList.includes(id)) return { ...prev, [fromKey]: fromList };
-      return { ...prev, [fromKey]: fromList, [toKey]: [...toList, id] };
+      const next: Record<string, string[]> = { ...prev };
+      if (fromKey) next[fromKey] = (prev[fromKey] ?? []).filter((x) => x !== id);
+      if (!toList.includes(id)) next[toKey] = [...toList, id];
+      return next;
     });
     const nm = studentsByIdRef.current.get(id);
-    toastWithUndo(`Moved ${nm ? nm.first_name : "camper"} — tap Undo`, "success", snapshot);
+    toastWithUndo(`${fromKey ? "Moved" : "Added"} ${nm ? nm.first_name : "camper"} — tap Undo`, "success", snapshot);
   }
 
   // Keep refs fresh for the (once-bound) global pointer listeners.
@@ -236,7 +249,7 @@ export default function ScheduleBuilderPage() {
 
   // A drag begins only after the pointer moves past a small threshold, so taps
   // and the × remove button still behave like normal clicks.
-  function startChipDrag(e: React.PointerEvent, fromKey: string, id: string) {
+  function startChipDrag(e: React.PointerEvent, fromKey: string | null, id: string) {
     if (e.button && e.button !== 0) return;
     dragRef.current = { id, fromKey, startX: e.clientX, startY: e.clientY, active: false };
   }
@@ -394,6 +407,46 @@ export default function ScheduleBuilderPage() {
                 {unplacedCount} kid{unplacedCount === 1 ? "" : "s"} unplaced all summer
               </span>
             </div>
+
+            {/* "Still needs a spot" — drag a camper from here into any open time */}
+            {unplacedStudents.length > 0 ? (
+              <div className="mt-3 rounded-2xl border border-brand-orange/30 bg-brand-orange/5 p-3">
+                <button
+                  onClick={() => setPoolOpen((o) => !o)}
+                  className="flex w-full items-center gap-2 text-left"
+                >
+                  <span className="text-lg">🛟</span>
+                  <span className="font-display text-lg text-brand-orange">
+                    {unplacedStudents.length} still need a spot
+                  </span>
+                  <span className="ml-auto text-sm font-semibold text-brand-orange/70">
+                    {poolOpen ? "Hide ▲" : "Show ▼"}
+                  </span>
+                </button>
+                {poolOpen ? (
+                  <>
+                    <p className="mt-1 text-xs text-brand-text/60">
+                      Drag a camper into any open time below to give them a lesson with{" "}
+                      {instructorName || "this instructor"}.
+                    </p>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {unplacedStudents.map((s) => (
+                        <span
+                          key={s.id}
+                          onPointerDown={(e) => startChipDrag(e, null, s.id)}
+                          style={{ touchAction: "none" }}
+                          className={`flex cursor-grab items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold active:cursor-grabbing ${pillClass(
+                            s.level
+                          )} ${draggingId === s.id ? "opacity-40" : ""}`}
+                        >
+                          {s.first_name} {s.last_name.charAt(0)}.
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
 
             {/* Schedule health checks (whole season, live) */}
             <HealthPanel issues={issues} />
