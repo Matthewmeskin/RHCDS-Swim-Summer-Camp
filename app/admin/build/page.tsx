@@ -48,6 +48,8 @@ export default function ScheduleBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: ToastKind; undo?: () => void } | null>(null);
   const [showAuto, setShowAuto] = useState(false);
+  const [drag, setDrag] = useState<{ fromKey: string; id: string } | null>(null);
+  const [dragOverKey, setDragOverKey] = useState<string | null>(null);
 
   // Show a toast whose "Undo" restores the assignments to `snapshot` (a deep
   // copy taken before the change). Everything here is in-memory until Save.
@@ -209,6 +211,23 @@ export default function ScheduleBuilderPage() {
     toastWithUndo(`Removed ${nm ? nm.first_name : "camper"} — tap Undo to put back`, "success", snapshot);
   }
 
+  // Drag a camper chip from one slot to another (move within this instructor).
+  function moveAssignment(toKey: string) {
+    const d = drag;
+    setDrag(null);
+    setDragOverKey(null);
+    if (!d || d.fromKey === toKey) return;
+    const snapshot = structuredClone(assignments);
+    setAssignments((prev) => {
+      const fromList = (prev[d.fromKey] ?? []).filter((x) => x !== d.id);
+      const toList = prev[toKey] ?? [];
+      if (toList.includes(d.id)) return { ...prev, [d.fromKey]: fromList };
+      return { ...prev, [d.fromKey]: fromList, [toKey]: [...toList, d.id] };
+    });
+    const nm = studentsById.get(d.id);
+    toastWithUndo(`Moved ${nm ? nm.first_name : "camper"} — tap Undo`, "success", snapshot);
+  }
+
   function copyToLater(week: Week) {
     if (!data) return;
     if (!confirm(`Copy ${instructorName}'s Week ${week.week_number} to every later week (overwrites their later weeks)?`)) return;
@@ -292,7 +311,8 @@ export default function ScheduleBuilderPage() {
         <p className="mt-1 text-sm text-brand-text/70">
           Pick an instructor to see their whole summer (all weeks). Build Week 1,
           then <strong>Copy to later weeks</strong> to keep kids with the same
-          instructor — and adjust from there.
+          instructor — and adjust from there. 👉 <strong>Tip:</strong> drag a
+          camper to another time to move them.
         </p>
 
         {loading ? (
@@ -379,13 +399,27 @@ export default function ScheduleBuilderPage() {
                                 const ids = assignments[k] ?? [];
                                 const isOff = data.offCells.has(k);
                                 return (
-                                  <td key={k} className={`border-l border-t border-brand-green/10 p-1 align-top ${isOff && ids.length === 0 ? "bg-gray-50" : ""}`}>
+                                  <td
+                                    key={k}
+                                    onDragOver={(e) => { if (drag) { e.preventDefault(); setDragOverKey(k); } }}
+                                    onDragLeave={() => setDragOverKey((cur) => (cur === k ? null : cur))}
+                                    onDrop={(e) => { e.preventDefault(); moveAssignment(k); }}
+                                    className={`border-l border-t border-brand-green/10 p-1 align-top ${
+                                      dragOverKey === k ? "bg-brand-aqua/30 ring-2 ring-inset ring-brand-green" : isOff && ids.length === 0 ? "bg-gray-50" : ""
+                                    }`}
+                                  >
                                     <div className="flex flex-col gap-1">
                                       {ids.map((id) => {
                                         const s = studentsById.get(id);
                                         if (!s) return null;
                                         return (
-                                          <span key={id} className={`flex items-center justify-between gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold ${pillClass(s.level)}`}>
+                                          <span
+                                            key={id}
+                                            draggable
+                                            onDragStart={(e) => { setDrag({ fromKey: k, id }); e.dataTransfer.effectAllowed = "move"; }}
+                                            onDragEnd={() => { setDrag(null); setDragOverKey(null); }}
+                                            className={`flex cursor-grab items-center justify-between gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold active:cursor-grabbing ${pillClass(s.level)} ${drag?.id === id ? "opacity-40" : ""}`}
+                                          >
                                             <span className="truncate">{s.first_name} {s.last_name.charAt(0)}.</span>
                                             <button onClick={() => removeStudent(d, slot.start, id)} aria-label="Remove" className="shrink-0 rounded-full px-1 leading-none hover:bg-black/20">×</button>
                                           </span>
