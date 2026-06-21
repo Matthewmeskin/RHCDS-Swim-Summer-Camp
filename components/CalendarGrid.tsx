@@ -3,6 +3,7 @@
 import type { Student, InstructorAvailability } from "@/lib/types";
 import type { SlotWithStudent } from "@/lib/data";
 import { formatDayHeader, formatSlotLabel } from "@/lib/format";
+import { groupByLevel } from "@/lib/groups";
 
 const SLOT_TIMES = ["16:30:00", "17:00:00", "17:30:00"];
 
@@ -111,11 +112,15 @@ export default function CalendarGrid({
                             <button
                               key={p.key}
                               onClick={() => onSelectStudent(p.student as Student)}
-                              title={p.student.level ?? undefined}
+                              title={[groupByLevel(p.student.group_level)?.name, p.student.level].filter(Boolean).join(" · ") || undefined}
                               className={`rounded-lg px-2 py-1 text-left text-xs font-semibold shadow-sm transition hover:-translate-y-px hover:shadow active:translate-y-0 ${levelPillClass(
                                 p.student.level
                               )}`}
                             >
+                              {(() => {
+                                const g = groupByLevel(p.student.group_level);
+                                return g ? `${g.emoji} ` : "";
+                              })()}
                               {p.label}
                             </button>
                           ) : (

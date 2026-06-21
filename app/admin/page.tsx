@@ -171,6 +171,13 @@ export default function AdminDashboard() {
               Who attends each week & how many lessons — powers Auto-fill.
             </p>
           </Link>
+          <Link href="/admin/import/levels" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
+            <div className="text-3xl">🐬</div>
+            <h2 className="mt-2 font-display text-2xl text-brand-green">Import Swim Groups</h2>
+            <p className="mt-1 text-sm text-brand-text/70">
+              Assign campers to a group (🐙🐠🐟🐢🐬🦈) in bulk by name.
+            </p>
+          </Link>
         </div>
 
         {/* Quick stats */}

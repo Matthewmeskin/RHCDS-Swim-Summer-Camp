@@ -3,6 +3,7 @@ import type { ParsedStudent } from "./parseStudents";
 import type { ParseScheduleResult } from "./parseSchedule";
 import type { ParsedPreference } from "./parsePreferences";
 import type { ParsedEnrollment } from "./parseEnrollment";
+import type { ParsedLevel } from "./parseLevels";
 import { matchStudent, type MatchableStudent } from "./matchStudent";
 import { detectRequestedInstructor } from "./builder";
 import { detectSpecialNeeds } from "./specialNeeds";
@@ -248,6 +249,47 @@ export async function importPreferences(
     unmatchedStudents: Array.from(new Set(unmatchedStudents)),
     unmatchedInstructors: Array.from(new Set(unmatchedInstructors)),
   };
+}
+
+export interface LevelsImportResult {
+  updated: number;
+  unmatchedStudents: string[];
+}
+
+/** Applies a swim-group CSV: matches each row to a student and sets group_level. */
+export async function importLevels(rows: ParsedLevel[]): Promise<LevelsImportResult> {
+  const db = requireSupabase();
+  const { data: studRows, error } = await db
+    .from("students")
+    .select("id, first_name, last_name");
+  if (error) throw error;
+
+  const matchable: MatchableStudent[] = (studRows ?? []) as MatchableStudent[];
+  let updated = 0;
+  const unmatched: string[] = [];
+
+  for (const row of rows) {
+    const { student } = matchStudent(`${row.first_name} ${row.last_name}`, matchable);
+    if (!student) {
+      unmatched.push(`${row.first_name} ${row.last_name}`.trim());
+      continue;
+    }
+    const { error: uErr } = await db
+      .from("students")
+      .update({ group_level: row.group_level })
+      .eq("id", student.id);
+    if (uErr) throw uErr;
+    updated++;
+  }
+
+  await db.from("import_logs").insert({
+    file_type: "students",
+    rows_inserted: 0,
+    rows_updated: updated,
+    warnings: { unmatchedStudents: unmatched, kind: "levels" },
+  });
+
+  return { updated, unmatchedStudents: Array.from(new Set(unmatched)) };
 }
 
 export interface EnrollmentImportResult {
