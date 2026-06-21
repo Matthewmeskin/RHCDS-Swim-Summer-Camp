@@ -566,6 +566,61 @@ export async function fetchAllStudents(): Promise<Student[]> {
   return (data ?? []) as Student[];
 }
 
+export interface DeckLesson {
+  instructorId: string | null;
+  instructorName: string;
+  date: string;
+  start: string;
+  end: string | null;
+  studentName: string;
+  groupLevel: number | null;
+  age: number | null;
+  special: boolean;
+}
+
+interface DeckRow {
+  instructor_id: string | null;
+  lesson_date: string;
+  start_time: string;
+  end_time: string | null;
+  student_name_raw: string | null;
+  instructors: { name: string } | null;
+  students: {
+    first_name: string;
+    last_name: string;
+    group_level: number | null;
+    age: number | null;
+    special_needs: boolean;
+  } | null;
+}
+
+/** Every lesson in a week (with camper + instructor) for printable deck sheets. */
+export async function fetchWeekDeck(weekNumber: number): Promise<DeckLesson[]> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("schedule_slots")
+    .select(
+      "instructor_id, lesson_date, start_time, end_time, student_name_raw, instructors(name), students(first_name, last_name, group_level, age, special_needs)"
+    )
+    .eq("week_number", weekNumber)
+    .order("lesson_date", { ascending: true })
+    .order("start_time", { ascending: true });
+  if (error) throw error;
+  return ((data ?? []) as unknown as DeckRow[]).map((r) => ({
+    instructorId: r.instructor_id,
+    instructorName: r.instructors?.name ?? "—",
+    date: r.lesson_date,
+    start: r.start_time,
+    end: r.end_time,
+    studentName: r.students
+      ? `${r.students.first_name} ${r.students.last_name}`
+      : r.student_name_raw ?? "—",
+    groupLevel: r.students?.group_level ?? null,
+    age: r.students?.age ?? null,
+    special: r.students?.special_needs ?? false,
+  }));
+}
+
 /** Tables included in a full backup (everything the admin can read). */
 const BACKUP_TABLES = [
   "instructors",

@@ -281,6 +281,11 @@ export default function AdminDashboard() {
             <h2 className="mt-2 font-display text-xl text-brand-green">Camper Schedule</h2>
             <p className="text-sm text-brand-text/70">One camper&apos;s summer + instructor — print / PDF.</p>
           </Link>
+          <Link href="/admin/sheets" className="camp-card block p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
+            <div className="text-3xl">🏊</div>
+            <h2 className="mt-2 font-display text-xl text-brand-green">Pool-Deck Sheets</h2>
+            <p className="text-sm text-brand-text/70">Laminate-ready daily lineups per instructor — print / PDF.</p>
+          </Link>
         </div>
 
         {/* Instructor links + availability */}

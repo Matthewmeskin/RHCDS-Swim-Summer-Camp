@@ -137,4 +137,11 @@
   .print-only {
     display: block;
   }
+  /* Each pool-deck sheet prints on its own page (no trailing blank page). */
+  .print-sheet {
+    break-after: page;
+  }
+  .print-sheet:last-child {
+    break-after: auto;
+  }
 }
