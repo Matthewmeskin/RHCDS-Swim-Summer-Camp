@@ -34,7 +34,7 @@ export default function CampLoader({ label }: { label?: string }) {
           width={72}
           height={72}
           priority
-          className="camp-loader-logo drop-shadow-md"
+          className="camp-loader-logo rounded-full drop-shadow-md"
         />
         <span className="camp-loader-ripple" aria-hidden="true" />
         <span className="camp-loader-ripple camp-loader-ripple-2" aria-hidden="true" />
