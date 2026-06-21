@@ -20,7 +20,7 @@ import { getWeekDays } from "@/lib/builder";
 import type { Instructor, Student, Week } from "@/lib/types";
 
 type Metric = "lessons" | "kids";
-type View = "overview" | "detail" | "allweeks";
+type View = "allweeks" | "overview";
 
 const SLOT_TIMES = ["16:30:00", "17:00:00", "17:30:00"];
 const hhmm = (t: string) => t.slice(0, 5);
@@ -65,8 +65,7 @@ export default function MasterSchedulePage() {
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<Metric>("lessons");
   const [showOff, setShowOff] = useState(false);
-  const [view, setView] = useState<View>("overview");
-  const [detailWeek, setDetailWeek] = useState<number>(1);
+  const [view, setView] = useState<View>("allweeks");
   const [selected, setSelected] = useState<Student | null>(null);
 
   useEffect(() => {
@@ -87,7 +86,6 @@ export default function MasterSchedulePage() {
         setSlots(sl);
         setOff(of);
         setStudents(st);
-        if (w[0]) setDetailWeek(w[0].week_number);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -162,10 +160,7 @@ export default function MasterSchedulePage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [weeks, counts]);
 
-  // ----- Per-cell data (instructor × date × time), shared by detail views -----
-  const detailWeekObj = weeks.find((w) => w.week_number === detailWeek) ?? null;
-  const detailDays = useMemo(() => getWeekDays(detailWeekObj), [detailWeekObj]);
-
+  // ----- Per-cell data (instructor × date × time) for the detail grids -----
   const kidsByCell = useMemo(() => {
     const m = new Map<string, string[]>();
     for (const s of slots) {
@@ -202,8 +197,8 @@ export default function MasterSchedulePage() {
       <div className="mx-auto max-w-6xl px-4 py-6">
         <h1 className="font-display text-4xl text-brand-green">Master Schedule</h1>
         <p className="mt-1 text-sm text-brand-text/70">
-          The whole summer at a glance. Switch to <strong>Week detail</strong> to see
-          the Mon–Fri times for each instructor.
+          Every instructor across all weeks, Mon–Fri. Switch to{" "}
+          <strong>Condensed</strong> for the counts-only overview.
         </p>
 
         {loading ? (
@@ -217,14 +212,13 @@ export default function MasterSchedulePage() {
             {/* View toggle */}
             <div className="mt-4 inline-flex flex-wrap overflow-hidden rounded-full border-2 border-brand-green">
               {([
-                ["overview", "Season overview"],
-                ["detail", "Week detail"],
-                ["allweeks", "All weeks · detail"],
+                ["allweeks", "Detailed"],
+                ["overview", "Condensed"],
               ] as [View, string][]).map(([v, label]) => (
                 <button
                   key={v}
                   onClick={() => setView(v)}
-                  className={`px-4 py-1.5 text-sm font-bold transition ${
+                  className={`px-5 py-1.5 text-sm font-bold transition ${
                     view === v ? "bg-brand-green text-white" : "bg-white text-brand-green"
                   }`}
                 >
@@ -249,20 +243,6 @@ export default function MasterSchedulePage() {
                 rowTotal={rowTotal}
                 colTotal={colTotal}
                 weekShort={weekShort}
-              />
-            ) : view === "detail" ? (
-              <Detail
-                instructors={instructors}
-                weeks={weeks}
-                days={detailDays}
-                detailWeek={detailWeek}
-                setDetailWeek={setDetailWeek}
-                kidsByCell={kidsByCell}
-                offByCell={offByCell}
-                studentsById={studentsById}
-                onPick={setSelected}
-                showOff={showOff}
-                setShowOff={setShowOff}
               />
             ) : (
               <AllWeeksDetail
@@ -582,69 +562,6 @@ function OffToggle({ showOff, setShowOff }: { showOff: boolean; setShowOff: (b: 
       />
       Show time off
     </label>
-  );
-}
-
-/* -------------------------------- Detail -------------------------------- */
-
-function Detail(props: {
-  instructors: Instructor[];
-  weeks: Week[];
-  days: string[];
-  detailWeek: number;
-  setDetailWeek: (n: number) => void;
-  kidsByCell: Map<string, string[]>;
-  offByCell: Set<string>;
-  studentsById: Map<string, Student>;
-  onPick: (s: Student) => void;
-  showOff: boolean;
-  setShowOff: (b: boolean) => void;
-}) {
-  const {
-    instructors, weeks, days, detailWeek, setDetailWeek, kidsByCell, offByCell,
-    studentsById, onPick, showOff, setShowOff,
-  } = props;
-
-  return (
-    <>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <label className="text-sm font-semibold">Week:</label>
-        <select
-          value={detailWeek}
-          onChange={(e) => setDetailWeek(parseInt(e.target.value, 10))}
-          className="rounded-full border-2 border-brand-green bg-white px-4 py-1.5 text-sm font-semibold"
-        >
-          {weeks.map((w) => (
-            <option key={w.week_number} value={w.week_number}>
-              {w.label ?? `Week ${w.week_number}`}
-            </option>
-          ))}
-        </select>
-        <OffToggle showOff={showOff} setShowOff={setShowOff} />
-        <span className="ml-auto italic text-xs text-brand-text/40 sm:hidden">swipe sideways →</span>
-      </div>
-
-      <LevelLegend />
-
-      <div className="mt-3">
-        <WeekGrid
-          weekNumber={detailWeek}
-          days={days}
-          instructors={instructors}
-          kidsByCell={kidsByCell}
-          offByCell={offByCell}
-          studentsById={studentsById}
-          onPick={onPick}
-          showOff={showOff}
-        />
-      </div>
-
-      <p className="mt-2 text-xs text-brand-text/50">
-        Each pill is a kid (initials, colored by level) at that day &amp; time —
-        <strong> tap a pill for their info &amp; notes</strong>. Times are{" "}
-        {SLOT_TIMES.map((t) => formatSlotLabel(t)).join(" · ")}.
-      </p>
-    </>
   );
 }
 
