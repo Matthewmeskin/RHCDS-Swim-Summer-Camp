@@ -28,6 +28,7 @@ export default function CamperSchedulePage() {
   const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Student | null>(null);
   const [lessons, setLessons] = useState<CamperLessonRow[]>([]);
+  const [weekFilter, setWeekFilter] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadingSched, setLoadingSched] = useState(false);
 
@@ -47,6 +48,7 @@ export default function CamperSchedulePage() {
   async function pick(s: Student) {
     setSelected(s);
     setQuery("");
+    setWeekFilter(null);
     setLoadingSched(true);
     try {
       setLessons(await fetchCamperSchedule(s.id));
@@ -148,6 +150,34 @@ export default function CamperSchedulePage() {
               </button>
             </div>
 
+            {/* Week toggle (only weeks the camper has lessons in) */}
+            {lessons.length > 0 ? (
+              <div className="no-print mt-3 flex flex-wrap items-center gap-1.5">
+                <span className="mr-1 text-xs font-bold uppercase tracking-wide text-brand-text/60">Show:</span>
+                <button
+                  onClick={() => setWeekFilter(null)}
+                  className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                    weekFilter == null ? "border-brand-green bg-brand-green text-white" : "border-brand-green/30 bg-white text-brand-green"
+                  }`}
+                >
+                  All weeks
+                </button>
+                {weeks
+                  .filter((w) => byWeek.has(w.week_number))
+                  .map((w) => (
+                    <button
+                      key={w.week_number}
+                      onClick={() => setWeekFilter(weekFilter === w.week_number ? null : w.week_number)}
+                      className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+                        weekFilter === w.week_number ? "border-brand-green bg-brand-green text-white" : "border-brand-green/30 bg-white text-brand-green"
+                      }`}
+                    >
+                      Wk {w.week_number}
+                    </button>
+                  ))}
+              </div>
+            ) : null}
+
             {loadingSched ? (
               <p className="mt-6 text-center text-brand-text/60">Loading schedule…</p>
             ) : lessons.length === 0 ? (
@@ -158,6 +188,7 @@ export default function CamperSchedulePage() {
               <div className="mt-4 space-y-4">
                 {weeks
                   .filter((w) => byWeek.has(w.week_number))
+                  .filter((w) => weekFilter == null || w.week_number === weekFilter)
                   .map((w) => {
                     const rows = byWeek.get(w.week_number) ?? [];
                     return (
