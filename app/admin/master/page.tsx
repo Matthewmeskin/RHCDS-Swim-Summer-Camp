@@ -66,7 +66,7 @@ export default function MasterSchedulePage() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<Metric>("lessons");
-  const [showOff, setShowOff] = useState(false);
+  const [showOff, setShowOff] = useState(true);
   const [view, setView] = useState<View>("allweeks");
   const [groupFilter, setGroupFilter] = useState<number | null>(null);
   const [selected, setSelected] = useState<Student | null>(null);
