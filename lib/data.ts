@@ -565,3 +565,46 @@ export async function fetchAllStudents(): Promise<Student[]> {
   if (error) throw error;
   return (data ?? []) as Student[];
 }
+
+/** Tables included in a full backup (everything the admin can read). */
+const BACKUP_TABLES = [
+  "instructors",
+  "students",
+  "weeks",
+  "swim_levels",
+  "schedule_slots",
+  "instructor_availability",
+  "availability_submissions",
+  "availability_requests",
+  "instructor_notes",
+  "student_enrollment",
+  "admins",
+] as const;
+
+export interface BackupFile {
+  app: string;
+  version: number;
+  exportedAt: string;
+  tables: Record<string, unknown[]>;
+}
+
+/**
+ * Pulls every data table into one object for a complete, restorable backup.
+ * Runs all reads in parallel; access codes/passwords live in Supabase auth and
+ * are intentionally not part of this export.
+ */
+export async function fetchFullBackup(): Promise<BackupFile> {
+  const db = requireSupabase();
+  const results = await Promise.all(
+    BACKUP_TABLES.map((t) => db.from(t).select("*").then(({ data, error }) => {
+      if (error) throw error;
+      return [t, data ?? []] as const;
+    }))
+  );
+  return {
+    app: "RHCDS Swim Summer Camp",
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    tables: Object.fromEntries(results),
+  };
+}

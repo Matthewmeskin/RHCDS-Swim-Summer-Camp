@@ -5,6 +5,7 @@ import Link from "next/link";
 import Nav from "@/components/Nav";
 import ConfigNotice from "@/components/ConfigNotice";
 import TodayPanel, { type TodoItem } from "@/components/TodayPanel";
+import BackupCard from "@/components/BackupCard";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import {
   fetchAdminStats,
@@ -296,6 +297,9 @@ export default function AdminDashboard() {
           </div>
           <span className="text-2xl text-brand-green">→</span>
         </Link>
+
+        {/* Reassurance: one-click full backup */}
+        <BackupCard />
       </div>
     </main>
   );
