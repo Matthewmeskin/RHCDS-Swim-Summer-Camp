@@ -152,6 +152,25 @@ export async function fetchAvailabilityRequests(
   return (data ?? []) as unknown as AvailabilityRequestRow[];
 }
 
+/** The slots an instructor is currently OFF for a week (for request impact). */
+export async function fetchInstructorOffSlots(
+  instructorId: string,
+  weekNumber: number
+): Promise<{ date: string; start: string }[]> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("instructor_availability")
+    .select("lesson_date, start_time")
+    .eq("instructor_id", instructorId)
+    .eq("week_number", weekNumber)
+    .eq("is_available", false);
+  if (error) throw error;
+  return (data ?? []).map((r: { lesson_date: string; start_time: string }) => ({
+    date: r.lesson_date,
+    start: r.start_time,
+  }));
+}
+
 export async function pendingRequestCount(): Promise<number> {
   const db = requireSupabase();
   const { count } = await db
