@@ -527,12 +527,19 @@ export interface OffLite {
 /** All "off" availability rows (lite) — for the master-schedule time-off overlay. */
 export async function fetchAllOffAvailability(): Promise<OffLite[]> {
   const db = requireSupabase();
-  const { data, error } = await db
-    .from("instructor_availability")
-    .select("instructor_id, week_number, lesson_date, start_time")
-    .eq("is_available", false);
-  if (error) throw error;
-  return (data ?? []) as OffLite[];
+  const out: OffLite[] = [];
+  const size = 1000;
+  for (let from = 0; ; from += size) {
+    const { data, error } = await db
+      .from("instructor_availability")
+      .select("instructor_id, week_number, lesson_date, start_time")
+      .eq("is_available", false)
+      .range(from, from + size - 1);
+    if (error) throw error;
+    out.push(...((data ?? []) as OffLite[]));
+    if (!data || data.length < size) break;
+  }
+  return out;
 }
 
 export interface CamperLessonRow {
@@ -621,6 +628,23 @@ export async function fetchWeekDeck(weekNumber: number): Promise<DeckLesson[]> {
   }));
 }
 
+/**
+ * Reads every row from a table, paging past the API's 1000-row response cap so
+ * large tables (e.g. instructor_availability) are never silently truncated.
+ */
+export async function fetchAllRows(table: string, columns = "*"): Promise<unknown[]> {
+  const db = requireSupabase();
+  const out: unknown[] = [];
+  const size = 1000;
+  for (let from = 0; ; from += size) {
+    const { data, error } = await db.from(table).select(columns).range(from, from + size - 1);
+    if (error) throw error;
+    out.push(...(data ?? []));
+    if (!data || data.length < size) break;
+  }
+  return out;
+}
+
 /** Tables included in a full backup (everything the admin can read). */
 const BACKUP_TABLES = [
   "instructors",
@@ -649,12 +673,8 @@ export interface BackupFile {
  * are intentionally not part of this export.
  */
 export async function fetchFullBackup(): Promise<BackupFile> {
-  const db = requireSupabase();
   const results = await Promise.all(
-    BACKUP_TABLES.map((t) => db.from(t).select("*").then(({ data, error }) => {
-      if (error) throw error;
-      return [t, data ?? []] as const;
-    }))
+    BACKUP_TABLES.map((t) => fetchAllRows(t).then((rows) => [t, rows] as const))
   );
   return {
     app: "RHCDS Swim Summer Camp",

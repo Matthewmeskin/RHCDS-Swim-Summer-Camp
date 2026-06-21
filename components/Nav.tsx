@@ -1,5 +1,8 @@
+"use client";
+
 import Image from "next/image";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import GlobalSearch from "@/components/GlobalSearch";
 
 export default function Nav({
@@ -9,6 +12,10 @@ export default function Nav({
   backHref?: string;
   subtitle?: string;
 }) {
+  // In the admin area the logo should go to the admin dashboard, not the
+  // public/staff sign-in page at "/".
+  const pathname = usePathname();
+  const homeHref = pathname?.startsWith("/admin") ? "/admin" : "/";
   return (
     <nav className="no-print sticky top-0 z-30 border-b border-black/10 bg-gradient-to-r from-brand-green to-[#356b4f] text-white shadow-md">
       <div className="mx-auto flex max-w-4xl items-center gap-3 px-4 py-3">
@@ -21,7 +28,7 @@ export default function Nav({
             ‹
           </Link>
         ) : null}
-        <Link href="/" className="flex items-center gap-3">
+        <Link href={homeHref} className="flex items-center gap-3">
           <Image
             src="/camp-logo.png"
             alt="Country Day Camp"

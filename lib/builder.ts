@@ -315,10 +315,23 @@ export async function fetchAllBuilderData(): Promise<AllBuilderData> {
       db
         .from("schedule_slots")
         .select("instructor_id, student_id, lesson_date, start_time"),
-      db
-        .from("instructor_availability")
-        .select("instructor_id, lesson_date, start_time, is_available")
-        .eq("is_available", false),
+      // Paginated: there can be more off-rows than the API's 1000-row cap, and
+      // dropping any would hide an instructor's time-off in the grid.
+      (async () => {
+        const out: { instructor_id: string | null; lesson_date: string; start_time: string }[] = [];
+        const size = 1000;
+        for (let from = 0; ; from += size) {
+          const { data, error } = await db
+            .from("instructor_availability")
+            .select("instructor_id, lesson_date, start_time")
+            .eq("is_available", false)
+            .range(from, from + size - 1);
+          if (error) throw error;
+          out.push(...((data ?? []) as typeof out));
+          if (!data || data.length < size) break;
+        }
+        return out;
+      })(),
       db.from("student_enrollment").select("student_id, week_number, lessons"),
     ]);
 
@@ -338,7 +351,7 @@ export async function fetchAllBuilderData(): Promise<AllBuilderData> {
   }
 
   const offCells = new Set<string>();
-  for (const a of (availRes.data ?? []) as InstructorAvailability[]) {
+  for (const a of availRes) {
     if (a.instructor_id) {
       offCells.add(cellKey(a.instructor_id, a.lesson_date, a.start_time));
     }
