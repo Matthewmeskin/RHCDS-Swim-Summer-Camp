@@ -110,6 +110,22 @@ export default function AdminDashboard() {
           <span className="text-2xl text-brand-green">→</span>
         </Link>
 
+        {/* Master schedule (whole summer) */}
+        <Link
+          href="/admin/master"
+          className="camp-card mt-4 flex items-center gap-4 p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
+        >
+          <div className="text-3xl">📅</div>
+          <div className="flex-1">
+            <h2 className="font-display text-2xl text-brand-green">Master Schedule</h2>
+            <p className="text-sm text-brand-text/70">
+              Every instructor across all weeks in one big table — the whole summer
+              at a glance.
+            </p>
+          </div>
+          <span className="text-2xl text-brand-green">→</span>
+        </Link>
+
         {/* Import cards */}
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Link href="/admin/import/students" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
