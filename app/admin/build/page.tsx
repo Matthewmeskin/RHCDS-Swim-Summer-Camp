@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback, useRef } from "react";
 import Nav from "@/components/Nav";
 import CampLoader from "@/components/CampLoader";
 import LevelBadge from "@/components/LevelBadge";
@@ -48,8 +48,13 @@ export default function ScheduleBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: ToastKind; undo?: () => void } | null>(null);
   const [showAuto, setShowAuto] = useState(false);
-  const [drag, setDrag] = useState<{ fromKey: string; id: string } | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
+  const [ghost, setGhost] = useState<{ x: number; y: number; label: string } | null>(null);
+  const dragRef = useRef<{ id: string; fromKey: string; startX: number; startY: number; active: boolean } | null>(null);
+  const dragOverRef = useRef<string | null>(null);
+  const assignmentsRef = useRef<Record<string, string[]>>({});
+  const studentsByIdRef = useRef<Map<string, Student>>(new Map());
 
   // Show a toast whose "Undo" restores the assignments to `snapshot` (a deep
   // copy taken before the change). Everything here is in-memory until Save.
@@ -211,22 +216,72 @@ export default function ScheduleBuilderPage() {
     toastWithUndo(`Removed ${nm ? nm.first_name : "camper"} — tap Undo to put back`, "success", snapshot);
   }
 
-  // Drag a camper chip from one slot to another (move within this instructor).
-  function moveAssignment(toKey: string) {
-    const d = drag;
-    setDrag(null);
-    setDragOverKey(null);
-    if (!d || d.fromKey === toKey) return;
-    const snapshot = structuredClone(assignments);
+  // Move a camper between slots (pointer drag works for both mouse and touch).
+  function moveAssignmentFromTo(fromKey: string, id: string, toKey: string) {
+    if (fromKey === toKey) return;
+    const snapshot = structuredClone(assignmentsRef.current);
     setAssignments((prev) => {
-      const fromList = (prev[d.fromKey] ?? []).filter((x) => x !== d.id);
+      const fromList = (prev[fromKey] ?? []).filter((x) => x !== id);
       const toList = prev[toKey] ?? [];
-      if (toList.includes(d.id)) return { ...prev, [d.fromKey]: fromList };
-      return { ...prev, [d.fromKey]: fromList, [toKey]: [...toList, d.id] };
+      if (toList.includes(id)) return { ...prev, [fromKey]: fromList };
+      return { ...prev, [fromKey]: fromList, [toKey]: [...toList, id] };
     });
-    const nm = studentsById.get(d.id);
+    const nm = studentsByIdRef.current.get(id);
     toastWithUndo(`Moved ${nm ? nm.first_name : "camper"} — tap Undo`, "success", snapshot);
   }
+
+  // Keep refs fresh for the (once-bound) global pointer listeners.
+  useEffect(() => { assignmentsRef.current = assignments; }, [assignments]);
+  useEffect(() => { studentsByIdRef.current = studentsById; }, [studentsById]);
+
+  // A drag begins only after the pointer moves past a small threshold, so taps
+  // and the × remove button still behave like normal clicks.
+  function startChipDrag(e: React.PointerEvent, fromKey: string, id: string) {
+    if (e.button && e.button !== 0) return;
+    dragRef.current = { id, fromKey, startX: e.clientX, startY: e.clientY, active: false };
+  }
+
+  useEffect(() => {
+    function move(e: PointerEvent) {
+      const d = dragRef.current;
+      if (!d) return;
+      if (!d.active) {
+        if (Math.hypot(e.clientX - d.startX, e.clientY - d.startY) < 6) return;
+        d.active = true;
+        setDraggingId(d.id);
+        const s = studentsByIdRef.current.get(d.id);
+        setGhost({ x: e.clientX, y: e.clientY, label: s ? `${s.first_name} ${s.last_name.charAt(0)}.` : "" });
+        document.body.style.userSelect = "none";
+      } else {
+        setGhost((g) => (g ? { ...g, x: e.clientX, y: e.clientY } : g));
+      }
+      e.preventDefault();
+      const el = document.elementFromPoint(e.clientX, e.clientY) as HTMLElement | null;
+      const cell = el?.closest("[data-cell]")?.getAttribute("data-cell") ?? null;
+      dragOverRef.current = cell;
+      setDragOverKey(cell);
+    }
+    function end() {
+      const d = dragRef.current;
+      dragRef.current = null;
+      setDraggingId(null);
+      setGhost(null);
+      document.body.style.userSelect = "";
+      const toKey = dragOverRef.current;
+      dragOverRef.current = null;
+      setDragOverKey(null);
+      if (d?.active && toKey) moveAssignmentFromTo(d.fromKey, d.id, toKey);
+    }
+    window.addEventListener("pointermove", move, { passive: false });
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+    return () => {
+      window.removeEventListener("pointermove", move);
+      window.removeEventListener("pointerup", end);
+      window.removeEventListener("pointercancel", end);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   function copyToLater(week: Week) {
     if (!data) return;
@@ -401,9 +456,7 @@ export default function ScheduleBuilderPage() {
                                 return (
                                   <td
                                     key={k}
-                                    onDragOver={(e) => { if (drag) { e.preventDefault(); setDragOverKey(k); } }}
-                                    onDragLeave={() => setDragOverKey((cur) => (cur === k ? null : cur))}
-                                    onDrop={(e) => { e.preventDefault(); moveAssignment(k); }}
+                                    data-cell={k}
                                     className={`border-l border-t border-brand-green/10 p-1 align-top ${
                                       dragOverKey === k ? "bg-brand-aqua/30 ring-2 ring-inset ring-brand-green" : isOff && ids.length === 0 ? "bg-gray-50" : ""
                                     }`}
@@ -415,10 +468,9 @@ export default function ScheduleBuilderPage() {
                                         return (
                                           <span
                                             key={id}
-                                            draggable
-                                            onDragStart={(e) => { setDrag({ fromKey: k, id }); e.dataTransfer.effectAllowed = "move"; }}
-                                            onDragEnd={() => { setDrag(null); setDragOverKey(null); }}
-                                            className={`flex cursor-grab items-center justify-between gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold active:cursor-grabbing ${pillClass(s.level)} ${drag?.id === id ? "opacity-40" : ""}`}
+                                            onPointerDown={(e) => startChipDrag(e, k, id)}
+                                            style={{ touchAction: "none" }}
+                                            className={`flex cursor-grab items-center justify-between gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-semibold active:cursor-grabbing ${pillClass(s.level)} ${draggingId === id ? "opacity-40" : ""}`}
                                           >
                                             <span className="truncate">{s.first_name} {s.last_name.charAt(0)}.</span>
                                             <button onClick={() => removeStudent(d, slot.start, id)} aria-label="Remove" className="shrink-0 rounded-full px-1 leading-none hover:bg-black/20">×</button>
@@ -513,6 +565,15 @@ export default function ScheduleBuilderPage() {
           onClose={() => setShowAuto(false)}
           onRun={runAuto}
         />
+      ) : null}
+
+      {ghost ? (
+        <div
+          className="pointer-events-none fixed z-[60] -translate-x-1/2 -translate-y-1/2 rounded-md bg-brand-green px-2 py-1 text-xs font-bold text-white shadow-lg"
+          style={{ left: ghost.x, top: ghost.y }}
+        >
+          {ghost.label}
+        </div>
       ) : null}
 
       {toast ? (
