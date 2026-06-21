@@ -3,19 +3,34 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { fetchInstructors, fetchAllStudents } from "@/lib/data";
-import { isSupabaseConfigured } from "@/lib/supabaseClient";
+import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 import { groupByLevel } from "@/lib/groups";
 import type { Instructor, Student } from "@/lib/types";
 
 /**
- * System-wide search. Mounts in the Nav and is available on every admin page.
- * Open with the search button or ⌘K / Ctrl+K. Finds any camper (opens their
- * popup with ability, group & notes) or instructor (jumps to their schedule).
+ * System-wide search. Mounts in the Nav and is available on every admin page,
+ * but only once an admin is signed in (never on the login page or public pages).
+ * Open with the search button or ⌘K / Ctrl+K.
  */
 export default function GlobalSearch() {
   const pathname = usePathname();
   const router = useRouter();
-  const isAdmin = pathname?.startsWith("/admin") ?? false;
+
+  const [signedIn, setSignedIn] = useState(false);
+  useEffect(() => {
+    if (!supabase) return;
+    let active = true;
+    supabase.auth.getSession().then(({ data }) => active && setSignedIn(!!data.session));
+    const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => setSignedIn(!!session));
+    return () => {
+      active = false;
+      sub.subscription.unsubscribe();
+    };
+  }, []);
+
+  // Only inside the admin area, once signed in, and never on the login page.
+  const enabled =
+    (pathname?.startsWith("/admin") ?? false) && pathname !== "/admin/login" && signedIn;
 
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -35,9 +50,9 @@ export default function GlobalSearch() {
     }
   }, [loaded]);
 
-  // ⌘K / Ctrl+K to open, Esc to close — admin pages only.
+  // ⌘K / Ctrl+K to open, Esc to close — only when enabled.
   useEffect(() => {
-    if (!isAdmin) return;
+    if (!enabled) return;
     function onKey(e: KeyboardEvent) {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
@@ -48,7 +63,7 @@ export default function GlobalSearch() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isAdmin]);
+  }, [enabled]);
 
   useEffect(() => {
     if (open) {
@@ -60,7 +75,7 @@ export default function GlobalSearch() {
     setQuery("");
   }, [open, load]);
 
-  if (!isAdmin) return null;
+  if (!enabled) return null;
 
   const ql = query.trim().toLowerCase();
   const insMatches = ql ? instructors.filter((i) => i.name.toLowerCase().includes(ql)).slice(0, 6) : [];
