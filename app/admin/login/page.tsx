@@ -1,26 +1,38 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 import Nav from "@/components/Nav";
 import ConfigNotice from "@/components/ConfigNotice";
 import { supabase, isSupabaseConfigured } from "@/lib/supabaseClient";
 
 export default function AdminLoginPage() {
+  return (
+    <Suspense fallback={<main className="min-h-screen" />}>
+      <LoginForm />
+    </Suspense>
+  );
+}
+
+function LoginForm() {
   const router = useRouter();
+  const params = useSearchParams();
+  const next = params.get("next") || "/admin";
+  const denied = params.get("denied") === "1";
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
-  // If already signed in, skip the form.
+  // If already signed in (and authorized), skip the form. Don't auto-redirect
+  // when we just bounced them here for not being an admin.
   useEffect(() => {
-    if (!supabase) return;
+    if (!supabase || denied) return;
     supabase.auth.getSession().then(({ data }) => {
-      if (data.session) router.replace("/admin");
+      if (data.session) router.replace(next);
     });
-  }, [router]);
+  }, [router, next, denied]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -28,12 +40,13 @@ export default function AdminLoginPage() {
     setBusy(true);
     setError(null);
     const { error } = await supabase.auth.signInWithPassword({ email, password });
-    setBusy(false);
     if (error) {
+      setBusy(false);
       setError(error.message);
       return;
     }
-    router.replace("/admin");
+    // Hard navigation so middleware re-evaluates with the fresh session cookie.
+    window.location.assign(next);
   }
 
   if (!isSupabaseConfigured) {
@@ -62,6 +75,12 @@ export default function AdminLoginPage() {
           <p className="mt-1 text-sm text-brand-text/70">
             Aquatics director access only.
           </p>
+
+          {denied ? (
+            <p className="mt-4 rounded-lg bg-brand-orange/15 px-3 py-2 text-sm text-brand-orange">
+              That account isn&apos;t authorized for admin. Sign in with an admin email.
+            </p>
+          ) : null}
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-3 text-left">
             <div>
