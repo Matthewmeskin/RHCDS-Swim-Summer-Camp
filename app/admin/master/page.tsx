@@ -20,7 +20,7 @@ import { getWeekDays } from "@/lib/builder";
 import type { Instructor, Student, Week } from "@/lib/types";
 
 type Metric = "lessons" | "kids";
-type View = "overview" | "detail" | "instructor";
+type View = "overview" | "detail" | "allweeks";
 
 const SLOT_TIMES = ["16:30:00", "17:00:00", "17:30:00"];
 const hhmm = (t: string) => t.slice(0, 5);
@@ -67,7 +67,6 @@ export default function MasterSchedulePage() {
   const [showOff, setShowOff] = useState(false);
   const [view, setView] = useState<View>("overview");
   const [detailWeek, setDetailWeek] = useState<number>(1);
-  const [instructorSel, setInstructorSel] = useState<string>("");
   const [selected, setSelected] = useState<Student | null>(null);
 
   useEffect(() => {
@@ -89,7 +88,6 @@ export default function MasterSchedulePage() {
         setOff(of);
         setStudents(st);
         if (w[0]) setDetailWeek(w[0].week_number);
-        if (ins[0]) setInstructorSel(ins[0].id);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -221,7 +219,7 @@ export default function MasterSchedulePage() {
               {([
                 ["overview", "Season overview"],
                 ["detail", "Week detail"],
-                ["instructor", "Instructor · all weeks"],
+                ["allweeks", "All weeks · detail"],
               ] as [View, string][]).map(([v, label]) => (
                 <button
                   key={v}
@@ -267,11 +265,9 @@ export default function MasterSchedulePage() {
                 setShowOff={setShowOff}
               />
             ) : (
-              <InstructorAllWeeks
+              <AllWeeksDetail
                 instructors={instructors}
                 weeks={weeks}
-                instructorSel={instructorSel}
-                setInstructorSel={setInstructorSel}
                 kidsByCell={kidsByCell}
                 offByCell={offByCell}
                 studentsById={studentsById}
@@ -487,6 +483,109 @@ function Overview(props: {
   );
 }
 
+/* ----------------------- Shared per-week detail grid --------------------- */
+
+function WeekGrid({
+  weekNumber, days, instructors, kidsByCell, offByCell, studentsById, onPick, showOff, stickyTop = true,
+}: {
+  weekNumber: number;
+  days: string[];
+  instructors: Instructor[];
+  kidsByCell: Map<string, string[]>;
+  offByCell: Set<string>;
+  studentsById: Map<string, Student>;
+  onPick: (s: Student) => void;
+  showOff: boolean;
+  stickyTop?: boolean;
+}) {
+  const dayTop = stickyTop ? "sticky top-0 z-20" : "";
+  const timeTop = stickyTop ? "sticky top-[44px] z-20" : "";
+  const cornerCls = stickyTop ? "sticky left-0 top-0 z-30" : "sticky left-0 z-30";
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-brand-green/15">
+      <table className="w-full border-collapse text-sm">
+        <thead>
+          <tr>
+            <th rowSpan={2} className={`${cornerCls} min-w-[140px] border-b border-white/40 bg-brand-aqua p-2 text-left align-bottom text-brand-text`}>
+              Instructor
+            </th>
+            {days.map((d) => {
+              const { day, date } = formatDayHeader(d);
+              return (
+                <th key={d} colSpan={SLOT_TIMES.length} className={`${dayTop} border-l-2 border-white/60 bg-brand-aqua p-1.5 text-center text-brand-text`}>
+                  <span className="block font-bold uppercase tracking-wide">{day}</span>
+                  <span className="block text-[11px] font-semibold text-brand-text/70">{date}</span>
+                </th>
+              );
+            })}
+          </tr>
+          <tr>
+            {days.map((d) =>
+              SLOT_TIMES.map((t, i) => (
+                <th key={`${d}__${t}`} className={`${timeTop} bg-brand-aqualight p-1 text-center text-[11px] font-bold text-brand-text ${i === 0 ? "border-l-2 border-white/60" : "border-l border-white/40"}`}>
+                  {formatSlotLabel(t)}
+                </th>
+              ))
+            )}
+          </tr>
+        </thead>
+        <tbody>
+          {instructors.map((ins, rowIdx) => {
+            const stickyBg = rowIdx % 2 ? "bg-brand-cream" : "bg-white";
+            return (
+              <tr key={ins.id} className={rowIdx % 2 ? "bg-brand-cream/40" : "bg-white"}>
+                <th className={`sticky left-0 z-10 border-t border-brand-green/10 p-2 text-left font-semibold text-brand-green ${stickyBg}`}>
+                  {ins.slug ? (
+                    <Link href={`/instructor/${ins.slug}?week=${weekNumber}`} className="hover:underline">
+                      {ins.name}
+                    </Link>
+                  ) : (
+                    ins.name
+                  )}
+                </th>
+                {days.map((d) =>
+                  SLOT_TIMES.map((t, i) => {
+                    const key = `${ins.id}__${d}__${hhmm(t)}`;
+                    const kids = (kidsByCell.get(key) ?? [])
+                      .map((id) => studentsById.get(id))
+                      .filter((s): s is Student => Boolean(s));
+                    const offEmpty = showOff && offByCell.has(key) && kids.length === 0;
+                    return (
+                      <td
+                        key={key}
+                        className={`min-w-[44px] border-t border-brand-green/10 p-1 align-top ${
+                          i === 0 ? "border-l-2 border-brand-green/20" : "border-l border-brand-green/10"
+                        } ${offEmpty ? "bg-brand-orange/10" : kids.length === 0 ? "bg-gray-50" : ""}`}
+                      >
+                        <KidPills kids={kids} offEmpty={offEmpty} onPick={onPick} />
+                      </td>
+                    );
+                  })
+                )}
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function OffToggle({ showOff, setShowOff }: { showOff: boolean; setShowOff: (b: boolean) => void }) {
+  return (
+    <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-brand-text">
+      <input
+        type="checkbox"
+        checked={showOff}
+        onChange={(e) => setShowOff(e.target.checked)}
+        className="h-4 w-4 accent-brand-orange"
+      />
+      Show time off
+    </label>
+  );
+}
+
 /* -------------------------------- Detail -------------------------------- */
 
 function Detail(props: {
@@ -522,98 +621,23 @@ function Detail(props: {
             </option>
           ))}
         </select>
-        <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-brand-text">
-          <input
-            type="checkbox"
-            checked={showOff}
-            onChange={(e) => setShowOff(e.target.checked)}
-            className="h-4 w-4 accent-brand-orange"
-          />
-          Show time off
-        </label>
+        <OffToggle showOff={showOff} setShowOff={setShowOff} />
         <span className="ml-auto italic text-xs text-brand-text/40 sm:hidden">swipe sideways →</span>
       </div>
 
       <LevelLegend />
 
-      <div className="mt-3 overflow-x-auto rounded-xl border border-brand-green/15">
-        <table className="w-full border-collapse text-sm">
-          <thead>
-            <tr>
-              <th
-                rowSpan={2}
-                className="sticky left-0 top-0 z-30 min-w-[140px] border-b border-white/40 bg-brand-aqua p-2 text-left align-bottom text-brand-text"
-              >
-                Instructor
-              </th>
-              {days.map((d) => {
-                const { day, date } = formatDayHeader(d);
-                return (
-                  <th
-                    key={d}
-                    colSpan={SLOT_TIMES.length}
-                    className="sticky top-0 z-20 border-l-2 border-white/60 bg-brand-aqua p-1.5 text-center text-brand-text"
-                  >
-                    <span className="block font-bold uppercase tracking-wide">{day}</span>
-                    <span className="block text-[11px] font-semibold text-brand-text/70">{date}</span>
-                  </th>
-                );
-              })}
-            </tr>
-            <tr>
-              {days.map((d) =>
-                SLOT_TIMES.map((t, i) => (
-                  <th
-                    key={`${d}__${t}`}
-                    className={`sticky top-[44px] z-20 bg-brand-aqualight p-1 text-center text-[11px] font-bold text-brand-text ${
-                      i === 0 ? "border-l-2 border-white/60" : "border-l border-white/40"
-                    }`}
-                  >
-                    {formatSlotLabel(t)}
-                  </th>
-                ))
-              )}
-            </tr>
-          </thead>
-          <tbody>
-            {instructors.map((ins, rowIdx) => {
-              const stickyBg = rowIdx % 2 ? "bg-brand-cream" : "bg-white";
-              return (
-                <tr key={ins.id} className={rowIdx % 2 ? "bg-brand-cream/40" : "bg-white"}>
-                  <th className={`sticky left-0 z-10 border-t border-brand-green/10 p-2 text-left font-semibold text-brand-green ${stickyBg}`}>
-                    {ins.slug ? (
-                      <Link href={`/instructor/${ins.slug}?week=${detailWeek}`} className="hover:underline">
-                        {ins.name}
-                      </Link>
-                    ) : (
-                      ins.name
-                    )}
-                  </th>
-                  {days.map((d) =>
-                    SLOT_TIMES.map((t, i) => {
-                      const key = `${ins.id}__${d}__${hhmm(t)}`;
-                      const kids = (kidsByCell.get(key) ?? [])
-                        .map((id) => studentsById.get(id))
-                        .filter((s): s is Student => Boolean(s));
-                      const isOff = offByCell.has(key);
-                      const offEmpty = showOff && isOff && kids.length === 0;
-                      return (
-                        <td
-                          key={key}
-                          className={`min-w-[44px] border-t border-brand-green/10 p-1 align-top ${
-                            i === 0 ? "border-l-2 border-brand-green/20" : "border-l border-brand-green/10"
-                          } ${offEmpty ? "bg-brand-orange/10" : kids.length === 0 ? "bg-gray-50" : ""}`}
-                        >
-                          <KidPills kids={kids} offEmpty={offEmpty} onPick={onPick} />
-                        </td>
-                      );
-                    })
-                  )}
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="mt-3">
+        <WeekGrid
+          weekNumber={detailWeek}
+          days={days}
+          instructors={instructors}
+          kidsByCell={kidsByCell}
+          offByCell={offByCell}
+          studentsById={studentsById}
+          onPick={onPick}
+          showOff={showOff}
+        />
       </div>
 
       <p className="mt-2 text-xs text-brand-text/50">
@@ -625,7 +649,72 @@ function Detail(props: {
   );
 }
 
-/* -------------------------- Instructor · all weeks ----------------------- */
+/* ----------------------- All weeks · all instructors --------------------- */
+
+function AllWeeksDetail(props: {
+  instructors: Instructor[];
+  weeks: Week[];
+  kidsByCell: Map<string, string[]>;
+  offByCell: Set<string>;
+  studentsById: Map<string, Student>;
+  onPick: (s: Student) => void;
+  showOff: boolean;
+  setShowOff: (b: boolean) => void;
+}) {
+  const { instructors, weeks, kidsByCell, offByCell, studentsById, onPick, showOff, setShowOff } = props;
+
+  return (
+    <>
+      <div className="mt-4 flex flex-wrap items-center gap-3">
+        <OffToggle showOff={showOff} setShowOff={setShowOff} />
+        <span className="ml-auto italic text-xs text-brand-text/40 sm:hidden">swipe sideways →</span>
+      </div>
+
+      <LevelLegend />
+
+      <div className="mt-4 space-y-6">
+        {weeks.map((week) => {
+          const days = getWeekDays(week);
+          let total = 0;
+          for (const ins of instructors)
+            for (const d of days)
+              for (const t of SLOT_TIMES)
+                total += kidsByCell.get(`${ins.id}__${d}__${hhmm(t)}`)?.length ?? 0;
+          return (
+            <section key={week.week_number}>
+              <div className="mb-2 flex items-baseline justify-between gap-2">
+                <h2 className="font-display text-2xl text-brand-green">
+                  {week.label ?? `Week ${week.week_number}`}
+                </h2>
+                <span className="text-xs font-semibold text-brand-text/60">
+                  {total} lesson{total === 1 ? "" : "s"}
+                </span>
+              </div>
+              <WeekGrid
+                weekNumber={week.week_number}
+                days={days}
+                instructors={instructors}
+                kidsByCell={kidsByCell}
+                offByCell={offByCell}
+                studentsById={studentsById}
+                onPick={onPick}
+                showOff={showOff}
+                stickyTop={false}
+              />
+            </section>
+          );
+        })}
+      </div>
+
+      <p className="mt-3 text-xs text-brand-text/50">
+        Every week, every instructor across Mon–Fri × {SLOT_TIMES.map((t) => formatSlotLabel(t)).join(" · ")}.
+        Each pill is a kid (initials, colored by level) — tap one for their info &amp; notes.
+      </p>
+    </>
+  );
+}
+
+/* ------------------------- Shared kid pills & legend --------------------- */
 
 function KidPills({
   kids, offEmpty, onPick,
@@ -666,123 +755,6 @@ function LevelLegend() {
       <span className="rounded px-2 py-0.5 bg-brand-green text-white">Intermediate</span>
       <span className="rounded px-2 py-0.5 bg-brand-aqua text-brand-text">Advanced</span>
     </div>
-  );
-}
-
-function InstructorAllWeeks(props: {
-  instructors: Instructor[];
-  weeks: Week[];
-  instructorSel: string;
-  setInstructorSel: (id: string) => void;
-  kidsByCell: Map<string, string[]>;
-  offByCell: Set<string>;
-  studentsById: Map<string, Student>;
-  onPick: (s: Student) => void;
-  showOff: boolean;
-  setShowOff: (b: boolean) => void;
-}) {
-  const {
-    instructors, weeks, instructorSel, setInstructorSel, kidsByCell, offByCell,
-    studentsById, onPick, showOff, setShowOff,
-  } = props;
-
-  const ins = instructors.find((i) => i.id === instructorSel) ?? instructors[0];
-
-  return (
-    <>
-      <div className="mt-4 flex flex-wrap items-center gap-3">
-        <label className="text-sm font-semibold">Instructor:</label>
-        <select
-          value={ins.id}
-          onChange={(e) => setInstructorSel(e.target.value)}
-          className="rounded-full border-2 border-brand-green bg-white px-4 py-1.5 text-sm font-semibold"
-        >
-          {instructors.map((i) => (
-            <option key={i.id} value={i.id}>{i.name}</option>
-          ))}
-        </select>
-        <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-brand-text">
-          <input
-            type="checkbox"
-            checked={showOff}
-            onChange={(e) => setShowOff(e.target.checked)}
-            className="h-4 w-4 accent-brand-orange"
-          />
-          Show time off
-        </label>
-      </div>
-
-      <LevelLegend />
-
-      <div className="mt-4 space-y-5">
-        {weeks.map((week) => {
-          const days = getWeekDays(week);
-          let total = 0;
-          for (const d of days)
-            for (const t of SLOT_TIMES)
-              total += kidsByCell.get(`${ins.id}__${d}__${hhmm(t)}`)?.length ?? 0;
-          return (
-            <section key={week.week_number} className="camp-card overflow-hidden">
-              <div className="flex items-center justify-between gap-2 border-b border-brand-green/10 bg-brand-sand/50 px-3 py-2">
-                <h2 className="font-display text-xl text-brand-green">
-                  {week.label ?? `Week ${week.week_number}`}
-                </h2>
-                <span className="text-xs font-semibold text-brand-text/60">
-                  {total} lesson{total === 1 ? "" : "s"}
-                </span>
-              </div>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[560px] border-collapse">
-                  <thead>
-                    <tr>
-                      <th className="w-14 bg-gradient-to-b from-brand-aqualight to-brand-aqua p-1.5" />
-                      {days.map((d) => {
-                        const { day, date } = formatDayHeader(d);
-                        return (
-                          <th key={d} className="border-l border-white/40 bg-gradient-to-b from-brand-aqualight to-brand-aqua p-1.5 text-center text-xs font-bold text-brand-text">
-                            <span className="block uppercase tracking-wide">{day}</span>
-                            <span className="block text-[11px] font-semibold text-brand-text/75">{date}</span>
-                          </th>
-                        );
-                      })}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {SLOT_TIMES.map((t, rowIdx) => (
-                      <tr key={t} className={rowIdx % 2 ? "bg-brand-cream/60" : "bg-white"}>
-                        <th className="border-t border-brand-green/10 p-1 text-center align-middle text-xs font-bold text-brand-green">
-                          {formatSlotLabel(t)}
-                        </th>
-                        {days.map((d) => {
-                          const key = `${ins.id}__${d}__${hhmm(t)}`;
-                          const kids = (kidsByCell.get(key) ?? [])
-                            .map((id) => studentsById.get(id))
-                            .filter((s): s is Student => Boolean(s));
-                          const offEmpty = showOff && offByCell.has(key) && kids.length === 0;
-                          return (
-                            <td
-                              key={key}
-                              className={`border-l border-t border-brand-green/10 p-1 align-top ${offEmpty ? "bg-brand-orange/10" : kids.length === 0 ? "bg-gray-50" : ""}`}
-                            >
-                              <KidPills kids={kids} offEmpty={offEmpty} onPick={onPick} />
-                            </td>
-                          );
-                        })}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          );
-        })}
-      </div>
-
-      <p className="mt-3 text-xs text-brand-text/50">
-        {ins.name}&apos;s whole summer — every week&apos;s Mon–Fri times. Each pill is a
-        kid (initials, colored by level); tap one for their info &amp; notes.
-      </p>
-    </>
   );
 }
 
