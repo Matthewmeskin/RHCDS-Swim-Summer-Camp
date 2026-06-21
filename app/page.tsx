@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import Nav from "@/components/Nav";
+import InstructorLogin from "@/components/InstructorLogin";
 import InstructorSelect from "@/components/InstructorSelect";
 import ConfigNotice from "@/components/ConfigNotice";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
@@ -11,19 +13,27 @@ import { fetchInstructors } from "@/lib/data";
 import type { Instructor } from "@/lib/types";
 
 export default function LandingPage() {
-  const [instructors, setInstructors] = useState<Instructor[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  return (
+    <Suspense fallback={<main className="min-h-screen" />}>
+      <Landing />
+    </Suspense>
+  );
+}
 
+function Landing() {
+  const params = useSearchParams();
+  const loginMsg =
+    params.get("login") === "unknown"
+      ? "That email isn't recognized as an instructor or admin."
+      : params.get("login") === "error"
+        ? "That login link was invalid or expired. Please request a new one."
+        : null;
+
+  // Temporary transition fallback: lets instructors who don't have email sign-in
+  // set up yet still reach their schedule by name. Removed at the Stage 3 cutover.
+  const [instructors, setInstructors] = useState<Instructor[]>([]);
   useEffect(() => {
-    if (!isSupabaseConfigured) {
-      setLoading(false);
-      return;
-    }
-    fetchInstructors()
-      .then(setInstructors)
-      .catch((e) => setError(e.message ?? "Could not load instructors"))
-      .finally(() => setLoading(false));
+    if (isSupabaseConfigured) fetchInstructors().then(setInstructors).catch(() => {});
   }, []);
 
   return (
@@ -49,22 +59,28 @@ export default function LandingPage() {
                 Welcome to Swim Camp
               </h1>
               <p className="mt-2 text-brand-text/70">
-                Select your name to see your schedule
+                Sign in to see your schedule
               </p>
             </div>
 
             <div className="px-8 pb-8 pt-2">
-              {loading ? (
-                <p className="text-sm text-brand-text/60">Loading instructors…</p>
-              ) : error ? (
-                <p className="text-sm text-brand-orange">{error}</p>
-              ) : instructors.length === 0 ? (
-                <p className="text-sm text-brand-text/60">
-                  No instructors yet — run the seed script.
+              {loginMsg ? (
+                <p className="mb-3 rounded-lg bg-brand-orange/15 px-3 py-2 text-sm text-brand-orange">
+                  {loginMsg}
                 </p>
-              ) : (
-                <InstructorSelect instructors={instructors} />
-              )}
+              ) : null}
+              <InstructorLogin />
+
+              {instructors.length > 0 ? (
+                <details className="mt-5 text-left">
+                  <summary className="cursor-pointer text-center text-xs font-semibold text-brand-text/50 hover:text-brand-green">
+                    No email sign-in yet? Find your name
+                  </summary>
+                  <div className="mt-3">
+                    <InstructorSelect instructors={instructors} />
+                  </div>
+                </details>
+              ) : null}
             </div>
           </div>
 

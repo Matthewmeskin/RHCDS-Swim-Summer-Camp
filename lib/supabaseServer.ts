@@ -1,4 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
+import { cookies } from "next/headers";
 import { type NextRequest, NextResponse } from "next/server";
 
 const DEFAULT_SUPABASE_URL = "https://aaioiktrlkyexmcbobzx.supabase.co";
@@ -31,4 +32,28 @@ export function createMiddlewareClient(request: NextRequest) {
   });
 
   return { supabase, response };
+}
+
+/**
+ * Supabase client for use inside Route Handlers (e.g. the auth callback),
+ * reading/writing the session cookie via next/headers.
+ */
+export async function createRouteClient() {
+  const cookieStore = await cookies();
+  return createServerClient(url, anonKey, {
+    cookies: {
+      getAll() {
+        return cookieStore.getAll();
+      },
+      setAll(cookiesToSet) {
+        try {
+          cookiesToSet.forEach(({ name, value, options }) =>
+            cookieStore.set(name, value, options),
+          );
+        } catch {
+          // Called from a context where cookies can't be set — safe to ignore.
+        }
+      },
+    },
+  });
 }
