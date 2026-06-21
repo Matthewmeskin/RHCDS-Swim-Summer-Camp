@@ -64,6 +64,7 @@ export default function RequestsPage() {
   async function decide(req: AvailabilityRequestRow, approve: boolean) {
     setBusy(req.id);
     try {
+      const { added, kept } = computeImpact(currentOff[req.id] ?? [], (req.off_slots ?? []) as Slot[]);
       const decided = await decideAvailabilityRequest(req.id, approve, notes[req.id]?.trim() || null);
       // Alert the instructor (via n8n: email).
       fetch("/api/notify-availability", {
@@ -78,6 +79,8 @@ export default function RequestsPage() {
           email: decided.contact_email,
           phone: decided.contact_phone,
           offSlots: formatOffSlots(decided.off_slots ?? []),
+          newOff: formatOffSlots(added),
+          alreadyOff: formatOffSlots(kept),
           decisionNote: decided.decision_note,
         }),
       }).catch(() => {});
@@ -129,7 +132,7 @@ export default function RequestsPage() {
                   {pending.map((req) => {
                     const requested = (req.off_slots ?? []) as Slot[];
                     const current = currentOff[req.id] ?? [];
-                    const { added, removed } = computeImpact(current, requested);
+                    const { added, removed, kept } = computeImpact(current, requested);
                     const noChange = added.length === 0 && removed.length === 0;
                     return (
                       <li key={req.id} className="camp-card p-4">
@@ -169,11 +172,25 @@ export default function RequestsPage() {
                               {added.length > 0 ? (
                                 <div>
                                   <p className="text-xs font-bold text-brand-orange">
-                                    🔴 Newly OFF — they’ll stop teaching these ({added.length})
+                                    🆕 New time off — they’ll stop teaching these ({added.length})
                                   </p>
                                   <div className="mt-1 flex flex-wrap gap-1">
                                     {added.map((s, i) => (
                                       <span key={i} className="rounded-full bg-brand-orange px-2 py-0.5 text-[11px] font-bold text-white">
+                                        {slotLabel(s)}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              ) : null}
+                              {kept.length > 0 ? (
+                                <div>
+                                  <p className="text-xs font-bold text-brand-text/60">
+                                    ✓ Already off — given before ({kept.length})
+                                  </p>
+                                  <div className="mt-1 flex flex-wrap gap-1">
+                                    {kept.map((s, i) => (
+                                      <span key={i} className="rounded-full border border-gray-300 bg-gray-100 px-2 py-0.5 text-[11px] font-semibold text-gray-500">
                                         {slotLabel(s)}
                                       </span>
                                     ))}

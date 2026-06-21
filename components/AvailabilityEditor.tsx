@@ -59,10 +59,14 @@ export default function AvailabilityEditor({
     setSaving(true);
     setError(null);
     try {
-      const offSlots = Array.from(off).map((key) => {
+      const toSlot = (key: string) => {
         const [date, hhmm] = key.split("__");
         return { date, start: `${hhmm}:00` };
-      });
+      };
+      const offSlots = Array.from(off).map(toSlot);
+      // Split into newly-requested vs. already-off (given before this request).
+      const newOff = Array.from(off).filter((key) => !initialOff.has(key)).map(toSlot);
+      const alreadyOff = Array.from(off).filter((key) => initialOff.has(key)).map(toSlot);
       await createAvailabilityRequest({
         instructorId,
         weekNumber,
@@ -71,7 +75,7 @@ export default function AvailabilityEditor({
         phone: phone.trim() || null,
         note: message.trim() || null,
       });
-      // Notify the office of the pending request (via n8n: Slack + email).
+      // Notify the office of the pending request (via n8n: email).
       fetch("/api/notify-availability", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -81,6 +85,8 @@ export default function AvailabilityEditor({
           slug: instructorSlug,
           week: weekNumber,
           offCount: off.size,
+          newOff: formatOffSlots(newOff),
+          alreadyOff: formatOffSlots(alreadyOff),
           offSlots: formatOffSlots(offSlots),
           email: email.trim() || null,
           phone: phone.trim() || null,
