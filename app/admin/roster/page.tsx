@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Nav from "@/components/Nav";
+import CampLoader from "@/components/CampLoader";
 import LevelBadge from "@/components/LevelBadge";
 import Toast, { type ToastKind } from "@/components/Toast";
 import ConfigNotice from "@/components/ConfigNotice";
@@ -120,7 +121,7 @@ export default function RosterPage() {
         />
 
         {loading ? (
-          <p className="mt-8 text-center text-brand-text/60">Loading…</p>
+          <CampLoader />
         ) : tab === "instructors" ? (
           <ul className="mt-4 divide-y divide-brand-sand rounded-2xl border-2 border-brand-green bg-white">
             {filteredInstr.map((i) => (

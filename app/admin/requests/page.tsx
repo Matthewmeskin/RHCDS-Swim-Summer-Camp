@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Nav from "@/components/Nav";
+import CampLoader from "@/components/CampLoader";
 import Toast, { type ToastKind } from "@/components/Toast";
 import ConfigNotice from "@/components/ConfigNotice";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
@@ -117,7 +118,7 @@ export default function RequestsPage() {
         </p>
 
         {loading ? (
-          <p className="mt-8 text-center text-brand-text/60">Loading…</p>
+          <CampLoader />
         ) : (
           <>
             <section className="mt-6">

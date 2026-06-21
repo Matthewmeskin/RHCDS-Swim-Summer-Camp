@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Nav from "@/components/Nav";
+import CampLoader from "@/components/CampLoader";
 import ConfigNotice from "@/components/ConfigNotice";
 import StudentModal from "@/components/StudentModal";
 import Toast, { type ToastKind } from "@/components/Toast";
@@ -345,7 +346,7 @@ export default function MasterSchedulePage() {
         </div>
 
         {loading ? (
-          <p className="mt-8 text-center text-brand-text/60">Loading…</p>
+          <CampLoader />
         ) : !ready ? (
           <div className="camp-card mt-6 p-5 text-sm text-brand-text/70">
             Add instructors and weeks first, then build a schedule to see it here.

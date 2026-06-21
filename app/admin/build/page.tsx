@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, useCallback } from "react";
 import Nav from "@/components/Nav";
+import CampLoader from "@/components/CampLoader";
 import LevelBadge from "@/components/LevelBadge";
 import Toast, { type ToastKind } from "@/components/Toast";
 import ConfigNotice from "@/components/ConfigNotice";
@@ -275,7 +276,7 @@ export default function ScheduleBuilderPage() {
         </p>
 
         {loading ? (
-          <p className="mt-10 text-center text-brand-text/60">Loading…</p>
+          <CampLoader />
         ) : !data || data.weeks.length === 0 ? (
           <p className="mt-10 text-center text-brand-text/60">No weeks set up yet.</p>
         ) : (

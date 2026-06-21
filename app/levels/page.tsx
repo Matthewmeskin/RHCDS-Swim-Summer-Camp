@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Nav from "@/components/Nav";
+import CampLoader from "@/components/CampLoader";
 import ConfigNotice from "@/components/ConfigNotice";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import { fetchSwimLevels } from "@/lib/data";
@@ -59,7 +60,7 @@ export default function LevelsGuidePage() {
         </div>
 
         {loading ? (
-          <p className="mt-8 text-center text-brand-text/60">Loading…</p>
+          <CampLoader />
         ) : (
           <div className="mt-6 space-y-5">
             {levels.map((l) => {

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Nav from "@/components/Nav";
+import CampLoader from "@/components/CampLoader";
 import LevelBadge from "@/components/LevelBadge";
 import ConfigNotice from "@/components/ConfigNotice";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
@@ -112,7 +113,7 @@ export default function CoveragePage() {
         </div>
 
         {loading ? (
-          <p className="mt-8 text-center text-brand-text/60">Loading…</p>
+          <CampLoader />
         ) : (
           <>
             {/* Coverage grid: kids / instructors per slot */}

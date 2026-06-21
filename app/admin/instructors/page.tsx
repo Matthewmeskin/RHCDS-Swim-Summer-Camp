@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import Nav from "@/components/Nav";
+import CampLoader from "@/components/CampLoader";
 import ConfigNotice from "@/components/ConfigNotice";
 import Toast, { type ToastKind } from "@/components/Toast";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
@@ -200,7 +201,7 @@ export default function InstructorAccessPage() {
         />
 
         {loading ? (
-          <p className="mt-8 text-center text-brand-text/60">Loading…</p>
+          <CampLoader />
         ) : (
           <ul className="mt-4 space-y-3">
             {filtered.map((i) => {
