@@ -517,6 +517,27 @@ export async function fetchAllOffAvailability(): Promise<OffLite[]> {
   return (data ?? []) as OffLite[];
 }
 
+export interface CamperLessonRow {
+  week_number: number | null;
+  lesson_date: string;
+  start_time: string;
+  end_time: string;
+  instructors: { name: string; slug: string | null } | null;
+}
+
+/** A single camper's lessons across the whole summer, with their instructor. */
+export async function fetchCamperSchedule(studentId: string): Promise<CamperLessonRow[]> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("schedule_slots")
+    .select("week_number, lesson_date, start_time, end_time, instructors(name, slug)")
+    .eq("student_id", studentId)
+    .order("lesson_date", { ascending: true })
+    .order("start_time", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as unknown as CamperLessonRow[];
+}
+
 export async function fetchAllStudents(): Promise<Student[]> {
   const db = requireSupabase();
   const { data, error } = await db
