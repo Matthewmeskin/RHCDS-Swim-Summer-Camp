@@ -8,6 +8,7 @@ import { formatRelative } from "@/lib/format";
 import {
   fetchInstructorNotes,
   saveInstructorNote,
+  saveStudentNotes,
   type InstructorNoteRow,
 } from "@/lib/data";
 
@@ -15,16 +16,43 @@ export default function StudentModal({
   student,
   onClose,
   instructorId,
+  adminEdit = false,
 }: {
   student: Student | null;
   onClose: () => void;
   /** When set, this instructor can add/edit their own progress note. */
   instructorId?: string;
+  /** When true (admin), parent + staff notes become editable. */
+  adminEdit?: boolean;
 }) {
   const [notes, setNotes] = useState<InstructorNoteRow[]>([]);
   const [myNote, setMyNote] = useState("");
   const [savingNote, setSavingNote] = useState(false);
   const [noteSaved, setNoteSaved] = useState(false);
+  const [parentNote, setParentNote] = useState("");
+  const [staffNote, setStaffNote] = useState("");
+  const [savingCard, setSavingCard] = useState(false);
+  const [cardSaved, setCardSaved] = useState(false);
+
+  useEffect(() => {
+    setParentNote(student?.parent_notes ?? "");
+    setStaffNote(student?.staff_notes ?? "");
+    setCardSaved(false);
+  }, [student]);
+
+  async function saveCardNotes() {
+    if (!student) return;
+    setSavingCard(true);
+    try {
+      await saveStudentNotes(student.id, {
+        parent_notes: parentNote.trim() || null,
+        staff_notes: staffNote.trim() || null,
+      });
+      setCardSaved(true);
+    } finally {
+      setSavingCard(false);
+    }
+  }
 
   useEffect(() => {
     if (!student) return;
@@ -125,27 +153,60 @@ export default function StudentModal({
           )}
         </div>
 
-        {student.parent_notes && student.parent_notes.trim() ? (
-          <div className="mt-4 rounded-xl border border-brand-green/15 bg-brand-sand/60 p-3">
+        {adminEdit ? (
+          <div className="mt-4 rounded-xl border border-brand-green/15 bg-white p-3">
             <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-brand-green">
               Parent notes
             </h3>
-            <p className="text-sm leading-relaxed text-brand-text">
-              {student.parent_notes}
-            </p>
-          </div>
-        ) : null}
-
-        {student.staff_notes && student.staff_notes.trim() ? (
-          <div className="mt-3 rounded-xl border border-brand-green/15 bg-white p-3">
-            <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-brand-green">
+            <textarea
+              value={parentNote}
+              onChange={(e) => { setParentNote(e.target.value); setCardSaved(false); }}
+              rows={2}
+              placeholder="Parent preferences / requests…"
+              className="w-full rounded-lg border border-brand-green/30 p-2 text-sm outline-none focus:ring-2 focus:ring-brand-aqua"
+            />
+            <h3 className="mb-1 mt-3 text-sm font-bold uppercase tracking-wide text-brand-green">
               Staff notes
             </h3>
-            <p className="text-sm leading-relaxed text-brand-text">
-              {student.staff_notes}
-            </p>
+            <textarea
+              value={staffNote}
+              onChange={(e) => { setStaffNote(e.target.value); setCardSaved(false); }}
+              rows={2}
+              placeholder="Internal aquatics-staff notes (not parent-facing)…"
+              className="w-full rounded-lg border border-brand-green/30 p-2 text-sm outline-none focus:ring-2 focus:ring-brand-aqua"
+            />
+            <div className="mt-2 flex items-center gap-3">
+              <button onClick={saveCardNotes} disabled={savingCard} className="camp-btn px-4 py-1.5 text-sm">
+                {savingCard ? "Saving…" : "Save notes"}
+              </button>
+              {cardSaved ? <span className="text-xs font-semibold text-brand-green">Saved ✓</span> : null}
+            </div>
           </div>
-        ) : null}
+        ) : (
+          <>
+            {student.parent_notes && student.parent_notes.trim() ? (
+              <div className="mt-4 rounded-xl border border-brand-green/15 bg-brand-sand/60 p-3">
+                <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-brand-green">
+                  Parent notes
+                </h3>
+                <p className="text-sm leading-relaxed text-brand-text">
+                  {student.parent_notes}
+                </p>
+              </div>
+            ) : null}
+
+            {student.staff_notes && student.staff_notes.trim() ? (
+              <div className="mt-3 rounded-xl border border-brand-green/15 bg-white p-3">
+                <h3 className="mb-1 text-sm font-bold uppercase tracking-wide text-brand-green">
+                  Staff notes
+                </h3>
+                <p className="text-sm leading-relaxed text-brand-text">
+                  {student.staff_notes}
+                </p>
+              </div>
+            ) : null}
+          </>
+        )}
 
         {/* Instructor progress notes */}
         <div className="mt-4">

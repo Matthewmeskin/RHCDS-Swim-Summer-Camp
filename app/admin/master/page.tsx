@@ -280,7 +280,7 @@ export default function MasterSchedulePage() {
         )}
       </div>
 
-      {selected ? <StudentModal student={selected} onClose={() => setSelected(null)} /> : null}
+      {selected ? <StudentModal student={selected} adminEdit onClose={() => setSelected(null)} /> : null}
     </main>
   );
 }
@@ -486,7 +486,7 @@ function Overview(props: {
 /* ----------------------- Shared per-week detail grid --------------------- */
 
 function WeekGrid({
-  weekNumber, days, instructors, kidsByCell, offByCell, studentsById, onPick, showOff, stickyTop = true,
+  weekNumber, days, instructors, kidsByCell, offByCell, studentsById, onPick, showOff,
 }: {
   weekNumber: number;
   days: string[];
@@ -496,11 +496,10 @@ function WeekGrid({
   studentsById: Map<string, Student>;
   onPick: (s: Student) => void;
   showOff: boolean;
-  stickyTop?: boolean;
 }) {
-  const dayTop = stickyTop ? "sticky top-0 z-20" : "";
-  const timeTop = stickyTop ? "sticky top-[44px] z-20" : "";
-  const cornerCls = stickyTop ? "sticky left-0 top-0 z-30" : "sticky left-0 z-30";
+  // Header is not sticky-top: the page Nav is already sticky (z-30) and an
+  // additional top-sticky header collides with it. Only the left column sticks.
+  const cornerCls = "sticky left-0 z-20";
 
   return (
     <div className="overflow-x-auto rounded-xl border border-brand-green/15">
@@ -513,7 +512,7 @@ function WeekGrid({
             {days.map((d) => {
               const { day, date } = formatDayHeader(d);
               return (
-                <th key={d} colSpan={SLOT_TIMES.length} className={`${dayTop} border-l-2 border-white/60 bg-brand-aqua p-1.5 text-center text-brand-text`}>
+                <th key={d} colSpan={SLOT_TIMES.length} className="border-l-2 border-white/60 bg-brand-aqua p-1.5 text-center text-brand-text">
                   <span className="block font-bold uppercase tracking-wide">{day}</span>
                   <span className="block text-[11px] font-semibold text-brand-text/70">{date}</span>
                 </th>
@@ -523,7 +522,7 @@ function WeekGrid({
           <tr>
             {days.map((d) =>
               SLOT_TIMES.map((t, i) => (
-                <th key={`${d}__${t}`} className={`${timeTop} bg-brand-aqualight p-1 text-center text-[11px] font-bold text-brand-text ${i === 0 ? "border-l-2 border-white/60" : "border-l border-white/40"}`}>
+                <th key={`${d}__${t}`} className={`bg-brand-aqualight p-1 text-center text-[11px] font-bold text-brand-text ${i === 0 ? "border-l-2 border-white/60" : "border-l border-white/40"}`}>
                   {formatSlotLabel(t)}
                 </th>
               ))
@@ -699,7 +698,6 @@ function AllWeeksDetail(props: {
                 studentsById={studentsById}
                 onPick={onPick}
                 showOff={showOff}
-                stickyTop={false}
               />
             </section>
           );

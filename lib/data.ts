@@ -76,6 +76,16 @@ export async function saveInstructor(rec: {
   }
 }
 
+/** Updates only a student's parent/staff notes (admin quick-edit). */
+export async function saveStudentNotes(
+  studentId: string,
+  notes: { parent_notes: string | null; staff_notes: string | null }
+): Promise<void> {
+  const db = requireSupabase();
+  const { error } = await db.from("students").update(notes).eq("id", studentId);
+  if (error) throw error;
+}
+
 export async function saveStudent(rec: Partial<Student> & { first_name: string; last_name: string }): Promise<void> {
   const db = requireSupabase();
   const payload = {
