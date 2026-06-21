@@ -17,6 +17,7 @@ import {
 } from "@/lib/data";
 import { parseISODate, formatDayHeader, formatSlotLabel } from "@/lib/format";
 import { getWeekDays } from "@/lib/builder";
+import { groupByLevel } from "@/lib/groups";
 import type { Instructor, Student, Week } from "@/lib/types";
 
 type Metric = "lessons" | "kids";
@@ -647,16 +648,19 @@ function KidPills({
   }
   return (
     <div className="flex flex-col gap-0.5">
-      {kids.map((s) => (
-        <button
-          key={s.id}
-          onClick={() => onPick(s)}
-          title={`${s.first_name} ${s.last_name}${s.level ? ` · ${s.level}` : ""} — tap for details`}
-          className={`truncate rounded px-1 py-0.5 text-center text-[11px] font-bold leading-tight transition hover:brightness-95 ${levelPill(s.level)}`}
-        >
-          {initials(s)}
-        </button>
-      ))}
+      {kids.map((s) => {
+        const grp = groupByLevel(s.group_level);
+        return (
+          <button
+            key={s.id}
+            onClick={() => onPick(s)}
+            title={`${s.first_name} ${s.last_name}${grp ? ` · ${grp.emoji} ${grp.name}` : ""}${s.level ? ` · ${s.level}` : ""} — tap for details`}
+            className={`truncate rounded px-1 py-0.5 text-center text-[11px] font-bold leading-tight transition hover:brightness-95 ${levelPill(s.level)}`}
+          >
+            {grp ? `${grp.emoji} ` : ""}{initials(s)}
+          </button>
+        );
+      })}
     </div>
   );
 }

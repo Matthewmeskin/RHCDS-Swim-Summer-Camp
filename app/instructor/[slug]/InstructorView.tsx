@@ -17,6 +17,7 @@ import {
 } from "@/lib/data";
 import type { Student, Week } from "@/lib/types";
 import { parseISODate } from "@/lib/format";
+import { groupByLevel } from "@/lib/groups";
 import { buildWeekIcs, downloadIcs, type CalendarLesson } from "@/lib/icsExport";
 
 function weekDays(data: InstructorWeekData): string[] {
@@ -255,6 +256,12 @@ export default function InstructorView() {
                       onClick={() => setSelected(s)}
                       className="flex items-center gap-2 rounded-full bg-white px-3 py-1.5 text-sm font-semibold text-brand-text shadow-sm ring-1 ring-brand-green/20 hover:ring-brand-green"
                     >
+                      {(() => {
+                        const grp = groupByLevel(s.group_level);
+                        return grp ? (
+                          <span title={grp.name} className="text-base leading-none">{grp.emoji}</span>
+                        ) : null;
+                      })()}
                       {s.first_name} {s.last_name}
                       <LevelBadge level={s.level} />
                       {s.special_needs ? <span title="Special needs note">⚠️</span> : null}
@@ -308,6 +315,9 @@ export default function InstructorView() {
                 🗓️ Request availability change
               </button>
             ) : null}
+            <a href="/levels" className="camp-btn-ghost w-full text-center sm:w-auto">
+              📘 Swim level guide
+            </a>
             {isGuard ? false : hasLessons ? (
               <button onClick={handleExport} className="camp-btn w-full sm:flex-1">
                 📅 Export My Week to Calendar

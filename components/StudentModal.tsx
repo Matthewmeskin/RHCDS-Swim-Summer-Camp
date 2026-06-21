@@ -1,14 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import type { Student } from "@/lib/types";
+import Link from "next/link";
+import type { Student, SwimLevel } from "@/lib/types";
 import LevelBadge from "./LevelBadge";
 import SpecialNeedsBanner from "./SpecialNeedsBanner";
 import { formatRelative } from "@/lib/format";
+import { SWIM_GROUPS, groupByLevel } from "@/lib/groups";
 import {
   fetchInstructorNotes,
   saveInstructorNote,
   saveStudentNotes,
+  fetchSwimLevels,
   type InstructorNoteRow,
 } from "@/lib/data";
 
@@ -31,14 +34,21 @@ export default function StudentModal({
   const [noteSaved, setNoteSaved] = useState(false);
   const [parentNote, setParentNote] = useState("");
   const [staffNote, setStaffNote] = useState("");
+  const [groupLevel, setGroupLevel] = useState<number | null>(null);
   const [savingCard, setSavingCard] = useState(false);
   const [cardSaved, setCardSaved] = useState(false);
+  const [levels, setLevels] = useState<SwimLevel[]>([]);
 
   useEffect(() => {
     setParentNote(student?.parent_notes ?? "");
     setStaffNote(student?.staff_notes ?? "");
+    setGroupLevel(student?.group_level ?? null);
     setCardSaved(false);
   }, [student]);
+
+  useEffect(() => {
+    if (levels.length === 0) fetchSwimLevels().then(setLevels).catch(() => {});
+  }, [levels.length]);
 
   async function saveCardNotes() {
     if (!student) return;
@@ -47,6 +57,7 @@ export default function StudentModal({
       await saveStudentNotes(student.id, {
         parent_notes: parentNote.trim() || null,
         staff_notes: staffNote.trim() || null,
+        group_level: groupLevel,
       });
       setCardSaved(true);
     } finally {
@@ -131,6 +142,76 @@ export default function StudentModal({
           ) : null}
           <LevelBadge level={student.level} />
         </div>
+
+        {/* Swim group + what the instructor needs to know for that level */}
+        {(() => {
+          const grp = groupByLevel(groupLevel);
+          const info = levels.find((l) => l.level === groupLevel);
+          return (
+            <div className="mt-4">
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-bold uppercase tracking-wide text-brand-green">
+                  Swim group
+                </h3>
+                {grp ? (
+                  <span
+                    className="rounded-full px-3 py-0.5 text-sm font-bold text-white"
+                    style={{ backgroundColor: grp.color }}
+                  >
+                    {grp.emoji} {grp.name}
+                  </span>
+                ) : (
+                  <span className="text-sm italic text-brand-text/50">Not assigned</span>
+                )}
+              </div>
+
+              {adminEdit ? (
+                <select
+                  value={groupLevel ?? ""}
+                  onChange={(e) => {
+                    setGroupLevel(e.target.value ? parseInt(e.target.value, 10) : null);
+                    setCardSaved(false);
+                  }}
+                  className="mt-2 w-full rounded-lg border border-brand-green/30 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-brand-aqua"
+                >
+                  <option value="">— No group —</option>
+                  {SWIM_GROUPS.map((g) => (
+                    <option key={g.level} value={g.level}>
+                      Level {g.level}: {g.emoji} {g.name}
+                    </option>
+                  ))}
+                </select>
+              ) : null}
+
+              {grp && info ? (
+                <div className="mt-2 rounded-xl border border-brand-green/15 bg-white p-3">
+                  {info.overview ? (
+                    <>
+                      <p className="text-xs font-bold uppercase tracking-wide text-brand-green">
+                        What to teach
+                      </p>
+                      <p className="mt-0.5 whitespace-pre-line text-sm leading-relaxed text-brand-text">
+                        {info.overview}
+                      </p>
+                    </>
+                  ) : null}
+                  {info.assessment ? (
+                    <p className="mt-2 rounded-lg bg-brand-sand/60 px-2 py-1 text-sm text-brand-text">
+                      <span className="font-bold">Pass: </span>
+                      {info.assessment}
+                    </p>
+                  ) : null}
+                  <Link
+                    href={`/levels#level-${grp.level}`}
+                    className="mt-2 inline-block text-sm font-bold text-brand-green underline"
+                  >
+                    Full level guide →
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+          );
+        })()}
 
         {student.special_needs ? (
           <div className="mt-4">

@@ -23,7 +23,18 @@ export interface Student {
   parent_notes: string | null;
   staff_notes: string | null;
   preferred_instructor_id: string | null;
+  group_level: number | null; // 1–6 swim group (see lib/groups.ts)
   active?: boolean;
+}
+
+export interface SwimLevel {
+  level: number;
+  name: string;
+  emoji: string;
+  color: string;
+  overview: string | null;
+  assessment: string | null;
+  games: string | null;
 }
 
 export interface InstructorNote {

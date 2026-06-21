@@ -126,6 +126,21 @@ export default function AdminDashboard() {
           <span className="text-2xl text-brand-green">→</span>
         </Link>
 
+        {/* Swim level guide */}
+        <Link
+          href="/admin/levels"
+          className="camp-card mt-4 flex items-center gap-4 p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
+        >
+          <div className="text-3xl">🐬</div>
+          <div className="flex-1">
+            <h2 className="font-display text-2xl text-brand-green">Swim Level Guide</h2>
+            <p className="text-sm text-brand-text/70">
+              The 6 groups (🐙🐠🐟🐢🐬🦈) — edit what instructors see for each level.
+            </p>
+          </div>
+          <span className="text-2xl text-brand-green">→</span>
+        </Link>
+
         {/* Import cards */}
         <div className="mt-4 grid gap-4 sm:grid-cols-2">
           <Link href="/admin/import/students" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">

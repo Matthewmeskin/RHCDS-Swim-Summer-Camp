@@ -10,7 +10,7 @@ function stud(id: string, first: string, last: string, extra: Partial<Student> =
   return {
     id, first_name: first, last_name: last, gender: null, age: null, level: null,
     goals: null, special_needs: false, parent_notes: null, staff_notes: null,
-    preferred_instructor_id: null, active: true, ...extra,
+    preferred_instructor_id: null, group_level: null, active: true, ...extra,
   };
 }
 

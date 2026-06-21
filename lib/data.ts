@@ -6,6 +6,7 @@ import type {
   ScheduleSlot,
   InstructorAvailability,
   Role,
+  SwimLevel,
 } from "./types";
 
 export interface SlotWithStudent extends ScheduleSlot {
@@ -76,13 +77,36 @@ export async function saveInstructor(rec: {
   }
 }
 
-/** Updates only a student's parent/staff notes (admin quick-edit). */
+/** Updates only a student's parent/staff notes + swim group (admin quick-edit). */
 export async function saveStudentNotes(
   studentId: string,
-  notes: { parent_notes: string | null; staff_notes: string | null }
+  fields: { parent_notes: string | null; staff_notes: string | null; group_level: number | null }
 ): Promise<void> {
   const db = requireSupabase();
-  const { error } = await db.from("students").update(notes).eq("id", studentId);
+  const { error } = await db.from("students").update(fields).eq("id", studentId);
+  if (error) throw error;
+}
+
+/** The 6 swim groups with their (editable) teaching content. */
+export async function fetchSwimLevels(): Promise<SwimLevel[]> {
+  const db = requireSupabase();
+  const { data, error } = await db
+    .from("swim_levels")
+    .select("*")
+    .order("level", { ascending: true });
+  if (error) throw error;
+  return (data ?? []) as SwimLevel[];
+}
+
+export async function saveSwimLevel(
+  level: number,
+  fields: { overview: string | null; assessment: string | null; games: string | null }
+): Promise<void> {
+  const db = requireSupabase();
+  const { error } = await db
+    .from("swim_levels")
+    .update({ ...fields, updated_at: new Date().toISOString() })
+    .eq("level", level);
   if (error) throw error;
 }
 
