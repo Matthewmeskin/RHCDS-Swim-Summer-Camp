@@ -111,6 +111,22 @@ export async function saveSwimLevel(
 }
 
 /** Staff (instructors) may edit ONLY a student's staff notes. */
+/** Generates (or regenerates) an instructor's access code + login account. Admin only. */
+export async function resetInstructorCode(instructorId: string): Promise<string> {
+  const db = requireSupabase();
+  const { data, error } = await db.rpc("admin_set_instructor_code", { p_instructor: instructorId });
+  if (error) throw error;
+  return data as string;
+}
+
+/** Creates codes + accounts for every active instructor who doesn't have one. Returns how many. */
+export async function setupAllInstructorCodes(): Promise<number> {
+  const db = requireSupabase();
+  const { data, error } = await db.rpc("admin_setup_all_codes");
+  if (error) throw error;
+  return (data as number) ?? 0;
+}
+
 export async function saveStaffNotes(studentId: string, staff_notes: string | null): Promise<void> {
   const db = requireSupabase();
   // Routed through a SECURITY DEFINER RPC that authorizes admins, or instructors

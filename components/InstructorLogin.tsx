@@ -4,82 +4,82 @@ import { useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
 /**
- * Email magic-link login for instructors (and admins). Enter email → we verify
- * it's a known instructor/admin → Supabase emails a one-time login link, which
- * lands on /auth/callback and routes the user to their schedule (or /admin).
+ * Instructor sign-in with name + access code (no email). The typed name maps to
+ * a hidden login id via the instructor_login_email RPC; the code is the password.
  */
 export default function InstructorLogin() {
-  const [email, setEmail] = useState("");
+  const [name, setName] = useState("");
+  const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
-  const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!supabase) return;
-    const addr = email.trim();
-    if (!addr) return;
+    const fullName = name.trim();
+    const accessCode = code.trim().toUpperCase();
+    if (!fullName || !accessCode) return;
     setBusy(true);
     setError(null);
     try {
-      // Don't email strangers / create stray accounts: confirm it's on file first.
-      const { data: allowed } = await supabase.rpc("login_allowed", { p_email: addr });
-      if (!allowed) {
-        setError(
-          "We don't have that email on file. Check with the aquatics director to get added.",
-        );
+      const { data: loginEmail } = await supabase.rpc("instructor_login_email", { p_name: fullName });
+      if (!loginEmail) {
+        setError("We couldn't find that name, or no code is set up yet. Check with the aquatics director.");
         return;
       }
-      const { error: otpError } = await supabase.auth.signInWithOtp({
-        email: addr,
-        options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+      const { error: signInError } = await supabase.auth.signInWithPassword({
+        email: loginEmail as string,
+        password: accessCode,
       });
-      if (otpError) {
-        setError(otpError.message);
+      if (signInError) {
+        setError("That code doesn't match. Double-check it with the aquatics director.");
         return;
       }
-      setSent(true);
+      const { data: slug } = await supabase.rpc("my_instructor_slug");
+      // Hard navigation so the new session cookie is in effect.
+      window.location.assign(slug ? `/instructor/${slug}` : "/");
     } finally {
       setBusy(false);
     }
   }
 
-  if (sent) {
-    return (
-      <div className="rounded-2xl border-2 border-brand-green bg-white px-5 py-6 text-center">
-        <p className="text-2xl">📧</p>
-        <p className="mt-2 font-semibold text-brand-green">Check your email</p>
-        <p className="mt-1 text-sm text-brand-text/70">
-          We sent a one-time login link to <strong>{email.trim()}</strong>. Open it on
-          this device to see your schedule.
-        </p>
-      </div>
-    );
-  }
-
   return (
     <form onSubmit={handleSubmit} className="text-left">
-      <label htmlFor="login-email" className="text-xs font-bold uppercase tracking-wide text-brand-green">
-        Your email
+      <label htmlFor="login-name" className="text-xs font-bold uppercase tracking-wide text-brand-green">
+        Your name
       </label>
       <input
-        id="login-email"
-        type="email"
-        autoComplete="email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
+        id="login-name"
+        type="text"
+        autoComplete="name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
         required
-        placeholder="you@example.com"
+        placeholder="First Last"
         className="mt-1 w-full rounded-full border-2 border-brand-green bg-white px-5 py-3 text-base text-brand-text outline-none focus:ring-2 focus:ring-brand-aqua"
+      />
+      <label htmlFor="login-code" className="mt-3 block text-xs font-bold uppercase tracking-wide text-brand-green">
+        Access code
+      </label>
+      <input
+        id="login-code"
+        type="text"
+        inputMode="text"
+        autoCapitalize="characters"
+        value={code}
+        onChange={(e) => setCode(e.target.value.toUpperCase())}
+        required
+        placeholder="e.g. K7M2QP"
+        className="mt-1 w-full rounded-full border-2 border-brand-green bg-white px-5 py-3 text-center text-lg font-bold tracking-[0.3em] text-brand-text outline-none focus:ring-2 focus:ring-brand-aqua"
       />
       {error ? (
         <p className="mt-2 rounded-lg bg-brand-orange/15 px-3 py-2 text-sm text-brand-orange">{error}</p>
       ) : null}
       <button type="submit" disabled={busy} className="camp-btn mt-3 w-full">
-        {busy ? "Sending…" : "Email me a login link"}
+        {busy ? "Signing in…" : "See my schedule"}
       </button>
       <p className="mt-2 text-center text-xs text-brand-text/50">
-        We&apos;ll email you a secure link — no password to remember.
+        Your aquatics director gives you your code.
       </p>
     </form>
   );

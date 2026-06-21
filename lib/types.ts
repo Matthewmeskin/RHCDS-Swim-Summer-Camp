@@ -9,6 +9,10 @@ export interface Instructor {
   role: Role;
   slug: string | null;
   active?: boolean;
+  /** Plaintext access code for name+code login (admin-visible). */
+  access_code?: string | null;
+  /** Synthetic login identity used by Supabase auth. */
+  login_email?: string | null;
 }
 
 export interface Student {
