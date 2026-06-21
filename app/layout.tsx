@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Pacifico, Nunito } from "next/font/google";
 import "./globals.css";
 
@@ -24,6 +24,16 @@ export const metadata: Metadata = {
     icon: "/favicon.png",
     apple: "/apple-icon.png",
   },
+  // Lets the app be installed to a phone home screen and run full-screen.
+  appleWebApp: {
+    capable: true,
+    title: "Swim Portal",
+    statusBarStyle: "default",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#407a5b",
 };
 
 export default function RootLayout({

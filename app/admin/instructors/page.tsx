@@ -15,6 +15,7 @@ import {
   setupAllInstructorCodes,
 } from "@/lib/data";
 import { formatRelative } from "@/lib/format";
+import { fireConfetti } from "@/lib/confetti";
 import type { Instructor } from "@/lib/types";
 
 const WEEK_OPTIONS = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -86,6 +87,7 @@ export default function InstructorAccessPage() {
       const refreshed = await fetchInstructors();
       setInstructors(refreshed);
       setToast({ msg: `Created ${n} new code${n === 1 ? "" : "s"} ✓`, kind: "success" });
+      if (n > 0) fireConfetti();
     } catch (e) {
       setToast({ msg: (e as Error).message ?? "Couldn't set up codes", kind: "error" });
     } finally {

@@ -6,6 +6,7 @@ import Nav from "@/components/Nav";
 import ConfigNotice from "@/components/ConfigNotice";
 import TodayPanel, { type TodoItem } from "@/components/TodayPanel";
 import BackupCard from "@/components/BackupCard";
+import InstallButton from "@/components/InstallButton";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import {
   fetchAdminStats,
@@ -300,6 +301,9 @@ export default function AdminDashboard() {
 
         {/* Reassurance: one-click full backup */}
         <BackupCard />
+
+        {/* Install to phone home screen */}
+        <InstallButton />
       </div>
     </main>
   );
