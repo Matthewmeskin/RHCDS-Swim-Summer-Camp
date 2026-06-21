@@ -76,6 +76,7 @@ export default function MasterSchedulePage() {
   const [pickQuery, setPickQuery] = useState("");
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(null);
+  const [gQuery, setGQuery] = useState("");
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -266,6 +267,46 @@ export default function MasterSchedulePage() {
           <strong>Condensed</strong> for the counts-only overview.
         </p>
 
+        {/* Global camper search */}
+        <div className="relative mt-3">
+          <input
+            value={gQuery}
+            onChange={(e) => setGQuery(e.target.value)}
+            placeholder="🔍 Search any camper — ability, group & notes…"
+            className="w-full rounded-full border-2 border-brand-green bg-white px-5 py-2.5 text-sm"
+          />
+          {gQuery.trim() ? (
+            <ul className="absolute z-30 mt-1 max-h-80 w-full overflow-auto rounded-2xl border-2 border-brand-green bg-white shadow-lg">
+              {students
+                .filter((s) => `${s.first_name} ${s.last_name}`.toLowerCase().includes(gQuery.trim().toLowerCase()))
+                .slice(0, 10)
+                .map((s) => {
+                  const g = groupByLevel(s.group_level);
+                  return (
+                    <li key={s.id}>
+                      <button
+                        onClick={() => { setSelected(s); setGQuery(""); }}
+                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-brand-sand"
+                      >
+                        {g ? (
+                          <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ backgroundColor: g.color }}>
+                            {g.emoji}
+                          </span>
+                        ) : null}
+                        <span className="flex-1 truncate font-semibold">{s.first_name} {s.last_name}</span>
+                        {g ? <span className="text-xs text-brand-text/60">{g.name}</span> : null}
+                        {s.level ? <span className="text-xs text-brand-text/40">{s.level}</span> : null}
+                      </button>
+                    </li>
+                  );
+                })}
+              {students.filter((s) => `${s.first_name} ${s.last_name}`.toLowerCase().includes(gQuery.trim().toLowerCase())).length === 0 ? (
+                <li className="px-4 py-3 text-center text-sm text-brand-text/50">No campers found</li>
+              ) : null}
+            </ul>
+          ) : null}
+        </div>
+
         {loading ? (
           <p className="mt-8 text-center text-brand-text/60">Loading…</p>
         ) : !ready ? (
@@ -378,21 +419,9 @@ export default function MasterSchedulePage() {
         )}
       </div>
 
-      {selected ? (
-        <StudentModal
-          student={selected}
-          adminEdit
-          onClose={() => setSelected(null)}
-          onSaved={(u) => {
-            setSelected(u);
-            setStudents((prev) => prev.map((s) => (s.id === u.id ? u : s)));
-          }}
-        />
-      ) : null}
-
       {/* Build picker */}
       {picker ? (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center sm:justify-center">
+        <div className="fixed inset-0 z-40 flex items-end sm:items-center sm:justify-center">
           <button aria-label="Close" onClick={() => setPicker(null)} className="absolute inset-0 bg-black/40" />
           <div className="relative w-full max-w-md rounded-t-3xl bg-brand-cream p-5 shadow-2xl sm:rounded-3xl sm:border-2 sm:border-brand-green">
             <h3 className="font-display text-2xl text-brand-green">Add a camper</h3>
@@ -418,11 +447,22 @@ export default function MasterSchedulePage() {
                 .map((s) => {
                   const g = groupByLevel(s.group_level);
                   return (
-                    <li key={s.id}>
-                      <button onClick={() => addKid(s.id)} className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm hover:bg-brand-sand">
-                        {g ? <span>{g.emoji}</span> : null}
+                    <li key={s.id} className="flex items-center">
+                      <button onClick={() => addKid(s.id)} className="flex flex-1 items-center gap-2 px-3 py-2 text-left text-sm hover:bg-brand-sand">
+                        {g ? (
+                          <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ backgroundColor: g.color }} title={g.name}>
+                            {g.emoji} {g.name.split(" ")[1] ?? g.name}
+                          </span>
+                        ) : null}
                         <span className="flex-1 truncate font-semibold">{s.first_name} {s.last_name}</span>
                         {s.level ? <span className="text-xs text-brand-text/50">{s.level}</span> : null}
+                      </button>
+                      <button
+                        onClick={() => setSelected(s)}
+                        title="View ability, group & notes"
+                        className="shrink-0 px-3 py-2 text-xs font-bold text-brand-green hover:underline"
+                      >
+                        Notes
                       </button>
                     </li>
                   );
@@ -431,6 +471,18 @@ export default function MasterSchedulePage() {
             <button onClick={() => setPicker(null)} className="camp-btn-ghost mt-3 w-full">Done</button>
           </div>
         </div>
+      ) : null}
+
+      {selected ? (
+        <StudentModal
+          student={selected}
+          adminEdit
+          onClose={() => setSelected(null)}
+          onSaved={(u) => {
+            setSelected(u);
+            setStudents((prev) => prev.map((s) => (s.id === u.id ? u : s)));
+          }}
+        />
       ) : null}
 
       {toast ? <Toast message={toast.msg} kind={toast.kind} onDismiss={() => setToast(null)} /> : null}
