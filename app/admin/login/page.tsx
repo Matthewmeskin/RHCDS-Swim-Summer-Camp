@@ -23,7 +23,8 @@ function LoginForm() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [usePassword, setUsePassword] = useState(false);
+  // Default to password sign-in; the magic-link option stays available below.
+  const [usePassword, setUsePassword] = useState(true);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
