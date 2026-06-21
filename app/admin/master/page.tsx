@@ -257,6 +257,21 @@ export default function MasterSchedulePage() {
 
   const ready = !loading && weeks.length > 0 && instructors.length > 0;
 
+  function jumpToInstructor(instructorId: string) {
+    setGQuery("");
+    setView("allweeks");
+    const firstWeek = weeks[0]?.week_number;
+    if (firstWeek == null) return;
+    // wait for the detailed grid to render, then scroll + flash the row
+    setTimeout(() => {
+      const el = document.getElementById(`ins-${instructorId}-w${firstWeek}`);
+      if (!el) return;
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.classList.add("ring-4", "ring-brand-aqua");
+      setTimeout(() => el.classList.remove("ring-4", "ring-brand-aqua"), 1800);
+    }, 60);
+  }
+
   return (
     <main className="min-h-screen">
       <Nav backHref="/admin" />
@@ -272,15 +287,34 @@ export default function MasterSchedulePage() {
           <input
             value={gQuery}
             onChange={(e) => setGQuery(e.target.value)}
-            placeholder="🔍 Search any camper — ability, group & notes…"
+            placeholder="🔍 Search campers or instructors…"
             className="w-full rounded-full border-2 border-brand-green bg-white px-5 py-2.5 text-sm"
           />
-          {gQuery.trim() ? (
-            <ul className="absolute z-30 mt-1 max-h-80 w-full overflow-auto rounded-2xl border-2 border-brand-green bg-white shadow-lg">
-              {students
-                .filter((s) => `${s.first_name} ${s.last_name}`.toLowerCase().includes(gQuery.trim().toLowerCase()))
-                .slice(0, 10)
-                .map((s) => {
+          {gQuery.trim() ? (() => {
+            const ql = gQuery.trim().toLowerCase();
+            const insMatches = instructors.filter((i) => i.name.toLowerCase().includes(ql)).slice(0, 6);
+            const campMatches = students.filter((s) => `${s.first_name} ${s.last_name}`.toLowerCase().includes(ql)).slice(0, 10);
+            return (
+              <ul className="absolute z-30 mt-1 max-h-96 w-full overflow-auto rounded-2xl border-2 border-brand-green bg-white shadow-lg">
+                {insMatches.length > 0 ? (
+                  <li className="bg-brand-aqualight px-4 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-text/60">Instructors</li>
+                ) : null}
+                {insMatches.map((i) => (
+                  <li key={`ins-${i.id}`}>
+                    <button
+                      onClick={() => jumpToInstructor(i.id)}
+                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-brand-sand"
+                    >
+                      <span className="text-base">🏊</span>
+                      <span className="flex-1 truncate font-semibold">{i.name}</span>
+                      <span className="text-xs text-brand-text/40">Go to schedule →</span>
+                    </button>
+                  </li>
+                ))}
+                {campMatches.length > 0 ? (
+                  <li className="bg-brand-aqualight px-4 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-text/60">Campers</li>
+                ) : null}
+                {campMatches.map((s) => {
                   const g = groupByLevel(s.group_level);
                   return (
                     <li key={s.id}>
@@ -300,11 +334,12 @@ export default function MasterSchedulePage() {
                     </li>
                   );
                 })}
-              {students.filter((s) => `${s.first_name} ${s.last_name}`.toLowerCase().includes(gQuery.trim().toLowerCase())).length === 0 ? (
-                <li className="px-4 py-3 text-center text-sm text-brand-text/50">No campers found</li>
-              ) : null}
-            </ul>
-          ) : null}
+                {insMatches.length === 0 && campMatches.length === 0 ? (
+                  <li className="px-4 py-3 text-center text-sm text-brand-text/50">No matches found</li>
+                ) : null}
+              </ul>
+            );
+          })() : null}
         </div>
 
         {loading ? (
@@ -742,7 +777,7 @@ function WeekGrid({
           {instructors.map((ins, rowIdx) => {
             const stickyBg = rowIdx % 2 ? "bg-brand-cream" : "bg-white";
             return (
-              <tr key={ins.id} className={rowIdx % 2 ? "bg-brand-cream/40" : "bg-white"}>
+              <tr key={ins.id} id={`ins-${ins.id}-w${weekNumber}`} className={rowIdx % 2 ? "bg-brand-cream/40" : "bg-white"}>
                 <th className={`sticky left-0 z-10 border-t border-brand-green/10 p-2 text-left font-semibold text-brand-green ${stickyBg}`}>
                   {ins.slug ? (
                     <Link href={`/instructor/${ins.slug}?week=${weekNumber}`} className="hover:underline">
