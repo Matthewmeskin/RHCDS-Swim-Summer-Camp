@@ -126,13 +126,13 @@ export default function LevelsGuidePage() {
 function Bullets({ text }: { text: string }) {
   const items = text
     .split(/\n+/)
-    .map((s) => s.replace(/^[•\-•]\s*/, "").trim())
+    .map((s) => s.replace(/^[•\-]\s*/, "").trim())
     .filter(Boolean);
   return (
-    <ul className="space-y-1 text-sm leading-relaxed text-brand-text">
+    <ul className="space-y-1.5 text-[15px] leading-relaxed text-brand-text">
       {items.map((it, i) => (
         <li key={i} className="flex gap-2">
-          <span className="mt-0.5 text-brand-green">•</span>
+          <span className="mt-1 text-brand-green">•</span>
           <span>{it}</span>
         </li>
       ))}
@@ -140,28 +140,30 @@ function Bullets({ text }: { text: string }) {
   );
 }
 
-/** Renders "Skill → games" lines with the skill bolded. */
+/** Renders "Skill → games" lines as a clean two-column Skill | Games table. */
 function SkillList({ text, color }: { text: string; color: string }) {
-  const lines = text.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  const rows = text
+    .split(/\n+/)
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const m = line.match(/^(.*?)(?:→|:)\s*(.*)$/);
+      return m ? { skill: m[1].trim(), games: m[2].trim() } : { skill: "", games: line };
+    });
   return (
-    <ul className="space-y-1.5 text-sm leading-relaxed text-brand-text">
-      {lines.map((line, i) => {
-        const m = line.match(/^(.*?)(→|:)\s*(.*)$/);
-        return (
-          <li key={i} className="flex gap-2">
-            <span className="mt-0.5" style={{ color }}>•</span>
-            {m ? (
-              <span>
-                <span className="font-bold">{m[1].trim()}</span>
-                <span className="text-brand-text/50"> — </span>
-                <span className="text-brand-text/90">{m[3]}</span>
-              </span>
-            ) : (
-              <span>{line}</span>
-            )}
-          </li>
-        );
-      })}
-    </ul>
+    <div className="overflow-hidden rounded-xl border" style={{ borderColor: `${color}33` }}>
+      <table className="w-full text-[13px] sm:text-sm">
+        <tbody className="divide-y divide-brand-sand">
+          {rows.map((r, i) => (
+            <tr key={i} className={i % 2 ? "bg-brand-cream/40" : "bg-white"}>
+              <th className="w-32 p-2 text-left align-top font-bold sm:w-44" style={{ color }}>
+                {r.skill}
+              </th>
+              <td className="p-2 align-top leading-relaxed text-brand-text/90">{r.games}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
   );
 }
