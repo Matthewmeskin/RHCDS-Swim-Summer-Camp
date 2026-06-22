@@ -261,7 +261,15 @@ export default function InstructorView() {
           </div>
         ) : null}
 
-        {isGuard ? (
+        {data.week && data.week.schedule_published === false ? (
+          <div className="camp-card mb-6 border-l-4 border-brand-orange p-4">
+            <p className="font-display text-xl text-brand-green">📅 Schedule coming soon</p>
+            <p className="mt-1 text-sm text-brand-text/70">
+              This week&apos;s lesson schedule hasn&apos;t been posted yet. You can still set your
+              availability below — we&apos;ll let you know when your schedule is ready.
+            </p>
+          </div>
+        ) : isGuard ? (
           <div className="camp-card mb-6 p-4">
             <p className="text-sm font-semibold text-brand-text">
               Guards do not have assigned lesson slots this week.

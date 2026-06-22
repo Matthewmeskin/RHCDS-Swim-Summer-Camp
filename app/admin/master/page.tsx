@@ -15,6 +15,7 @@ import {
   fetchAllScheduleSlots,
   fetchAllOffAvailability,
   fetchAllStudents,
+  setWeekPublished,
   type SlotLite,
   type OffLite,
 } from "@/lib/data";
@@ -369,6 +370,21 @@ export default function MasterSchedulePage() {
     );
   }
 
+  // Publish/hide a week's schedule to instructors (availability is unaffected).
+  async function togglePublish(weekNumber: number) {
+    const wk = weeks.find((w) => w.week_number === weekNumber);
+    if (!wk) return;
+    const next = !wk.schedule_published;
+    setWeeks((prev) => prev.map((w) => (w.week_number === weekNumber ? { ...w, schedule_published: next } : w)));
+    try {
+      await setWeekPublished(weekNumber, next);
+      setToast({ msg: next ? `Week ${weekNumber} is now visible to instructors ✓` : `Week ${weekNumber} hidden from instructors`, kind: "success" });
+    } catch (e) {
+      setWeeks((prev) => prev.map((w) => (w.week_number === weekNumber ? { ...w, schedule_published: !next } : w)));
+      setToast({ msg: (e as Error).message ?? "Couldn't update visibility", kind: "error" });
+    }
+  }
+
   // Copy one instructor's chosen week to all later weeks (needs a selected instructor).
   function copyWeekToLater(weekNumber: number) {
     if (!instructorFilter) return;
@@ -706,6 +722,7 @@ export default function MasterSchedulePage() {
                 building={building}
                 onAdd={(instructorId, date, hh) => { setPicker({ instructorId, date, hhmm: hh }); setPickQuery(""); }}
                 onRemove={removeKid}
+                onTogglePublish={togglePublish}
                 dragOverKey={dragOverKey}
                 draggingId={draggingId}
                 onChipPointerDown={startChipDrag}
@@ -1162,11 +1179,12 @@ function AllWeeksDetail(props: {
   building: boolean;
   onAdd: (instructorId: string, date: string, hh: string) => void;
   onRemove: (instructorId: string, date: string, hh: string, studentId: string) => void;
+  onTogglePublish?: (weekNumber: number) => void;
   dragOverKey?: string | null;
   draggingId?: string | null;
   onChipPointerDown?: (e: React.PointerEvent, cellKey: string, studentId: string) => void;
 }) {
-  const { instructors, weeks, kidsByCell, offByCell, studentsById, onPick, showOff, setShowOff, building, onAdd, onRemove, dragOverKey, draggingId, onChipPointerDown } = props;
+  const { instructors, weeks, kidsByCell, offByCell, studentsById, onPick, showOff, setShowOff, building, onAdd, onRemove, onTogglePublish, dragOverKey, draggingId, onChipPointerDown } = props;
 
   return (
     <>
@@ -1187,13 +1205,28 @@ function AllWeeksDetail(props: {
                 total += kidsByCell.get(`${ins.id}__${d}__${hhmm(t)}`)?.length ?? 0;
           return (
             <section key={week.week_number}>
-              <div className="mb-2 flex items-baseline justify-between gap-2">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="font-display text-2xl text-brand-green">
                   {week.label ?? `Week ${week.week_number}`}
                 </h2>
-                <span className="text-xs font-semibold text-brand-text/60">
-                  {total} lesson{total === 1 ? "" : "s"}
-                </span>
+                <div className="flex items-center gap-2">
+                  {onTogglePublish ? (
+                    <button
+                      onClick={() => onTogglePublish(week.week_number)}
+                      title={week.schedule_published ? "Instructors can see this week — tap to hide" : "Hidden from instructors — tap to publish"}
+                      className={`rounded-full px-3 py-1 text-xs font-bold transition ${
+                        week.schedule_published
+                          ? "bg-brand-green text-white hover:brightness-110"
+                          : "border border-brand-orange/50 bg-brand-orange/10 text-brand-orange hover:bg-brand-orange/20"
+                      }`}
+                    >
+                      {week.schedule_published ? "👁 Visible to instructors" : "🙈 Hidden — tap to publish"}
+                    </button>
+                  ) : null}
+                  <span className="text-xs font-semibold text-brand-text/60">
+                    {total} lesson{total === 1 ? "" : "s"}
+                  </span>
+                </div>
               </div>
               <WeekGrid
                 weekNumber={week.week_number}

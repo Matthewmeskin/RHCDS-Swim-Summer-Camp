@@ -20,6 +20,13 @@ export interface InstructorWeekData {
   availability: InstructorAvailability[];
 }
 
+/** Publish/unpublish a week's lesson schedule to instructors. Admin only. */
+export async function setWeekPublished(weekNumber: number, published: boolean): Promise<void> {
+  const db = requireSupabase();
+  const { error } = await db.from("weeks").update({ schedule_published: published }).eq("week_number", weekNumber);
+  if (error) throw error;
+}
+
 /** Active instructors only (public picker, builder, links). */
 export async function fetchInstructors(): Promise<Instructor[]> {
   const db = requireSupabase();

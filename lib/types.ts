@@ -71,6 +71,8 @@ export interface Week {
   start_date: string;
   end_date: string;
   label: string | null;
+  /** When false, instructors can't see this week's lesson schedule (availability still works). */
+  schedule_published?: boolean;
 }
 
 export interface ScheduleSlot {
