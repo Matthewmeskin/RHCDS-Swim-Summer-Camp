@@ -87,6 +87,8 @@ export default function MasterSchedulePage() {
   const autoScrollRaf = useRef<number | null>(null);
   const assignmentsRef = useRef<Record<string, string[]>>({});
   const studentsByIdRef = useRef<Map<string, Student>>(new Map());
+  const offByCellRef = useRef<Set<string>>(new Set());
+  const [instructorFilter, setInstructorFilter] = useState<string>("");
   const router = useRouter();
 
   useEffect(() => {
@@ -270,6 +272,9 @@ export default function MasterSchedulePage() {
 
   function moveAssignmentFromTo(fromKey: string, id: string, toKey: string) {
     if (fromKey === toKey) return;
+    if (offByCellRef.current.has(toKey) && !confirm("That's the instructor's time off. Schedule a lesson there anyway?")) {
+      return;
+    }
     const snapshot = structuredClone(assignmentsRef.current);
     setAssignments((prev) => {
       const toList = prev[toKey] ?? [];
@@ -288,6 +293,7 @@ export default function MasterSchedulePage() {
 
   useEffect(() => { assignmentsRef.current = assignments; }, [assignments]);
   useEffect(() => { studentsByIdRef.current = studentsById; }, [studentsById]);
+  useEffect(() => { offByCellRef.current = offByCell; }, [offByCell]);
 
   useEffect(() => {
     function autoScrollTick() {
@@ -488,6 +494,19 @@ export default function MasterSchedulePage() {
                   </button>
                 )
               ) : null}
+              {view === "allweeks" ? (
+                <select
+                  value={instructorFilter}
+                  onChange={(e) => setInstructorFilter(e.target.value)}
+                  className="rounded-full border-2 border-brand-green bg-white px-4 py-1.5 text-sm font-semibold"
+                  title="Focus on one instructor"
+                >
+                  <option value="">All instructors</option>
+                  {instructors.map((i) => (
+                    <option key={i.id} value={i.id}>{i.name}</option>
+                  ))}
+                </select>
+              ) : null}
             </div>
 
             {/* Group filter */}
@@ -539,7 +558,7 @@ export default function MasterSchedulePage() {
               />
             ) : (
               <AllWeeksDetail
-                instructors={instructors}
+                instructors={instructorFilter ? instructors.filter((i) => i.id === instructorFilter) : instructors}
                 weeks={weeks}
                 kidsByCell={building ? buildKids : kidsByCell}
                 offByCell={offByCell}
