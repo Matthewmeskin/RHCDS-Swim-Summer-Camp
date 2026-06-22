@@ -164,33 +164,17 @@ export default function AdminDashboard() {
           )}
         </Link>
 
-        {/* Schedule builder CTA */}
-        <Link
-          href="/admin/build"
-          className="camp-card mt-6 flex items-center gap-4 p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
-        >
-          <div className="text-3xl">🧩</div>
-          <div className="flex-1">
-            <h2 className="font-display text-2xl text-brand-green">Build the Schedule</h2>
-            <p className="text-sm text-brand-text/70">
-              Assign kids to instructors with consistency suggestions — copy last
-              week and adjust.
-            </p>
-          </div>
-          <span className="text-2xl text-brand-green">→</span>
-        </Link>
-
-        {/* Master schedule (whole summer) */}
+        {/* Master schedule (whole summer) — view + build in one place */}
         <Link
           href="/admin/master"
-          className="camp-card mt-4 flex items-center gap-4 p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
+          className="camp-card mt-6 flex items-center gap-4 p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
         >
           <div className="text-3xl">📅</div>
           <div className="flex-1">
             <h2 className="font-display text-2xl text-brand-green">Master Schedule</h2>
             <p className="text-sm text-brand-text/70">
-              Every instructor across all weeks in one big table — the whole summer
-              at a glance.
+              The whole summer in one table — and tap <strong>Build</strong> to assign kids with
+              Auto-fill, drag-and-drop, and copy-week.
             </p>
           </div>
           <span className="text-2xl text-brand-green">→</span>

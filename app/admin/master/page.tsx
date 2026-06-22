@@ -18,8 +18,10 @@ import {
   type SlotLite,
   type OffLite,
 } from "@/lib/data";
+import AutoFillModal from "@/components/AutoFillModal";
 import { parseISODate, formatDayHeader, formatSlotLabel } from "@/lib/format";
-import { getWeekDays, saveAllWeeks } from "@/lib/builder";
+import { getWeekDays, saveAllWeeks, fetchAllBuilderData, copyInstructorWeekToLater } from "@/lib/builder";
+import { autoAssignWeek, computePrior, type AutoConfig } from "@/lib/autoSchedule";
 import { SWIM_GROUPS, groupByLevel } from "@/lib/groups";
 import type { Instructor, Student, Week } from "@/lib/types";
 
@@ -81,7 +83,7 @@ export default function MasterSchedulePage() {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOverKey, setDragOverKey] = useState<string | null>(null);
   const [ghost, setGhost] = useState<{ x: number; y: number; label: string } | null>(null);
-  const dragRef = useRef<{ id: string; fromKey: string; startX: number; startY: number; active: boolean } | null>(null);
+  const dragRef = useRef<{ id: string; fromKey: string | null; startX: number; startY: number; active: boolean } | null>(null);
   const dragOverRef = useRef<string | null>(null);
   const pointerPosRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const autoScrollRaf = useRef<number | null>(null);
@@ -89,6 +91,11 @@ export default function MasterSchedulePage() {
   const studentsByIdRef = useRef<Map<string, Student>>(new Map());
   const offByCellRef = useRef<Set<string>>(new Set());
   const [instructorFilter, setInstructorFilter] = useState<string>("");
+  const [showAuto, setShowAuto] = useState(false);
+  const [autoBusy, setAutoBusy] = useState(false);
+  const [hasEnrollment, setHasEnrollment] = useState(false);
+  const [poolOpen, setPoolOpen] = useState(false);
+  const builderDataRef = useRef<Awaited<ReturnType<typeof fetchAllBuilderData>> | null>(null);
   const router = useRouter();
 
   useEffect(() => {
@@ -229,6 +236,20 @@ export default function MasterSchedulePage() {
 
   const buildKids = useMemo(() => new Map(Object.entries(assignments)), [assignments]);
 
+  const placedCount = useMemo(() => {
+    const m = new Map<string, number>();
+    Object.values(assignments).forEach((ids) => ids.forEach((id) => m.set(id, (m.get(id) ?? 0) + 1)));
+    return m;
+  }, [assignments]);
+
+  const unplacedStudents = useMemo(
+    () =>
+      students
+        .filter((s) => s.active !== false && !placedCount.get(s.id))
+        .sort((a, b) => `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)),
+    [students, placedCount]
+  );
+
   function addKid(studentId: string) {
     if (!picker) return;
     const k = `${picker.instructorId}__${picker.date}__${picker.hhmm}`;
@@ -270,7 +291,7 @@ export default function MasterSchedulePage() {
     });
   }
 
-  function moveAssignmentFromTo(fromKey: string, id: string, toKey: string) {
+  function moveAssignmentFromTo(fromKey: string | null, id: string, toKey: string) {
     if (fromKey === toKey) return;
     if (offByCellRef.current.has(toKey) && !confirm("That's the instructor's time off. Schedule a lesson there anyway?")) {
       return;
@@ -278,17 +299,85 @@ export default function MasterSchedulePage() {
     const snapshot = structuredClone(assignmentsRef.current);
     setAssignments((prev) => {
       const toList = prev[toKey] ?? [];
-      const next: Record<string, string[]> = { ...prev, [fromKey]: (prev[fromKey] ?? []).filter((x) => x !== id) };
+      const next: Record<string, string[]> = { ...prev };
+      if (fromKey) next[fromKey] = (prev[fromKey] ?? []).filter((x) => x !== id);
       if (!toList.includes(id)) next[toKey] = [...toList, id];
       return next;
     });
     const nm = studentsByIdRef.current.get(id);
-    toastWithUndo(`Moved ${nm ? nm.first_name : "camper"} — tap Undo`, "success", snapshot);
+    toastWithUndo(`${fromKey ? "Moved" : "Added"} ${nm ? nm.first_name : "camper"} — tap Undo`, "success", snapshot);
   }
 
-  function startChipDrag(e: React.PointerEvent, fromKey: string, id: string) {
+  function startChipDrag(e: React.PointerEvent, fromKey: string | null, id: string) {
     if (!building || (e.button && e.button !== 0)) return;
     dragRef.current = { id, fromKey, startX: e.clientX, startY: e.clientY, active: false };
+  }
+
+  // ----- Auto-fill (ported from the builder) -----
+  async function openAuto() {
+    setAutoBusy(true);
+    try {
+      const bd = builderDataRef.current ?? (await fetchAllBuilderData());
+      builderDataRef.current = bd;
+      setHasEnrollment(Object.keys(bd.enrollment).length > 0);
+      setShowAuto(true);
+    } catch (e) {
+      setToast({ msg: (e as Error).message ?? "Couldn't load data for Auto-fill", kind: "error" });
+    } finally {
+      setAutoBusy(false);
+    }
+  }
+
+  function runAuto(opts: { scope: "current" | "all"; config: AutoConfig; targetWeek: number; useEnrollment: boolean }) {
+    const bd = builderDataRef.current;
+    if (!bd) return;
+    if (opts.config.mode === "rebuild" && !confirm("Rebuild clears the chosen week(s) and re-assigns everyone. Continue?")) return;
+    setShowAuto(false);
+    const snapshot = structuredClone(assignmentsRef.current);
+    const teaching = bd.instructors;
+    const activeStudents = bd.students.filter((s) => s.active !== false);
+    const weeksToRun = opts.scope === "all" ? bd.weeks.map((w) => w.week_number) : [opts.targetWeek];
+    let working = { ...assignmentsRef.current };
+    let placed = 0;
+    const unplaced: string[] = [];
+    for (const wk of weeksToRun) {
+      const weekObj = bd.weeks.find((w) => w.week_number === wk);
+      if (!weekObj) continue;
+      const prior = computePrior(working, bd.dateToWeek, wk);
+      const lessonsByStudent = opts.useEnrollment && bd.enrollment[wk] ? bd.enrollment[wk] : undefined;
+      const res = autoAssignWeek({
+        days: getWeekDays(weekObj),
+        instructors: teaching,
+        students: activeStudents,
+        assignments: working,
+        offCells: bd.offCells,
+        requestedByStudent: bd.requestedByStudent,
+        priorByStudent: prior,
+        config: opts.config,
+        lessonsByStudent,
+      });
+      working = res.assignments;
+      placed += res.report.placed;
+      res.report.unplaced.forEach((u) => unplaced.push(u.name));
+    }
+    setAssignments(working);
+    const couldnt = Array.from(new Set(unplaced));
+    toastWithUndo(
+      `Auto-fill: ${placed} placed${couldnt.length ? ` · ${couldnt.length} couldn't place` : ""} — review & Save`,
+      couldnt.length ? "error" : "success",
+      snapshot
+    );
+  }
+
+  // Copy one instructor's chosen week to all later weeks (needs a selected instructor).
+  function copyWeekToLater(weekNumber: number) {
+    if (!instructorFilter) return;
+    if (!confirm(`Copy this instructor's Week ${weekNumber} to every later week (overwrites their later weeks)?`)) return;
+    const snapshot = structuredClone(assignmentsRef.current);
+    const wk = weeks.find((w) => w.week_number === weekNumber);
+    if (!wk) return;
+    setAssignments((prev) => copyInstructorWeekToLater(prev, instructorFilter, wk, weeks));
+    toastWithUndo(`Copied Week ${weekNumber} to later weeks — review & Save`, "success", snapshot);
   }
 
   useEffect(() => { assignmentsRef.current = assignments; }, [assignments]);
@@ -479,14 +568,17 @@ export default function MasterSchedulePage() {
               </div>
               {view === "allweeks" ? (
                 building ? (
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button onClick={openAuto} disabled={autoBusy} className="camp-btn-orange px-4 py-1.5 text-sm disabled:opacity-50">
+                      {autoBusy ? "Loading…" : "✨ Auto-fill"}
+                    </button>
                     <button onClick={saveBuild} disabled={saving} className="camp-btn px-4 py-1.5 text-sm">
                       {saving ? "Saving…" : "💾 Save schedule"}
                     </button>
                     <button onClick={() => setBuilding(false)} className="camp-btn-ghost px-4 py-1.5 text-sm">
                       Cancel
                     </button>
-                    <span className="text-xs font-semibold text-brand-orange">Editing — tap a slot to add/remove kids</span>
+                    <span className="text-xs font-semibold text-brand-orange">Editing — drag, tap a slot, or Auto-fill</span>
                   </div>
                 ) : (
                   <button onClick={() => setBuilding(true)} className="camp-btn-orange px-4 py-1.5 text-sm">
@@ -538,6 +630,51 @@ export default function MasterSchedulePage() {
                 );
               })}
             </div>
+
+            {building ? (
+              <div className="mt-3 space-y-3">
+                {instructorFilter ? (
+                  <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-brand-green/20 bg-brand-green/5 p-3 text-sm">
+                    <span className="font-semibold text-brand-green">Copy a week to all later weeks:</span>
+                    {weeks.map((w) => (
+                      <button
+                        key={w.week_number}
+                        onClick={() => copyWeekToLater(w.week_number)}
+                        className="rounded-full border border-brand-green/40 bg-white px-3 py-1 text-xs font-bold text-brand-green hover:bg-brand-sand"
+                      >
+                        Wk {w.week_number} →
+                      </button>
+                    ))}
+                  </div>
+                ) : null}
+                {unplacedStudents.length > 0 ? (
+                  <div className="rounded-2xl border border-brand-orange/30 bg-brand-orange/5 p-3">
+                    <button onClick={() => setPoolOpen((o) => !o)} className="flex w-full items-center gap-2 text-left">
+                      <span className="text-lg">🛟</span>
+                      <span className="font-display text-lg text-brand-orange">{unplacedStudents.length} still need a spot</span>
+                      <span className="ml-auto text-sm font-semibold text-brand-orange/70">{poolOpen ? "Hide ▲" : "Show ▼"}</span>
+                    </button>
+                    {poolOpen ? (
+                      <>
+                        <p className="mt-1 text-xs text-brand-text/60">Drag a camper into any open time below to schedule them.</p>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {unplacedStudents.map((s) => (
+                            <span
+                              key={s.id}
+                              onPointerDown={(e) => startChipDrag(e, null, s.id)}
+                              style={{ touchAction: "none" }}
+                              className={`flex cursor-grab items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold active:cursor-grabbing ${levelPill(s.level)} ${draggingId === s.id ? "opacity-40" : ""}`}
+                            >
+                              {s.first_name} {s.last_name}
+                            </span>
+                          ))}
+                        </div>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
 
             {view === "overview" ? (
               <Overview
@@ -641,6 +778,15 @@ export default function MasterSchedulePage() {
             setSelected(u);
             setStudents((prev) => prev.map((s) => (s.id === u.id ? u : s)));
           }}
+        />
+      ) : null}
+
+      {showAuto && builderDataRef.current ? (
+        <AutoFillModal
+          weeks={builderDataRef.current.weeks}
+          hasEnrollment={hasEnrollment}
+          onClose={() => setShowAuto(false)}
+          onRun={runAuto}
         />
       ) : null}
 

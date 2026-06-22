@@ -169,10 +169,10 @@ export default function CoveragePage() {
                 </p>
                 <p className="mt-1 text-sm text-brand-text/70">
                   Build it in the{" "}
-                  <a href="/admin/build" className="font-bold text-brand-green underline">
-                    Schedule Builder
+                  <a href="/admin/master" className="font-bold text-brand-green underline">
+                    Master Schedule
                   </a>{" "}
-                  (try ✨ Auto-fill), then come back to check coverage.
+                  (tap Build, then ✨ Auto-fill), then come back to check coverage.
                 </p>
               </div>
             ) : (

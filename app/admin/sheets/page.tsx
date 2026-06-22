@@ -117,7 +117,7 @@ export default function PoolDeckSheetsPage() {
             emoji="🏊"
             title={`Week ${week} isn't scheduled yet`}
             message="Once you've built this week's lessons, each instructor's pool-deck sheet will appear here, ready to print."
-            actionHref="/admin/build"
+            actionHref="/admin/master"
             actionLabel="Build the schedule"
           />
         ) : (
