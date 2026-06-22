@@ -102,11 +102,26 @@
 .camp-bubble-1 { left: 22%; height: 7px;  width: 7px;  --drift: -6px; animation-delay: 0.2s; }
 .camp-bubble-2 { left: 50%; height: 10px; width: 10px; --drift: 4px;  animation-delay: 0.9s; background: #6fa0be; }
 .camp-bubble-3 { left: 74%; height: 6px;  width: 6px;  --drift: 7px;  animation-delay: 1.45s; }
+/* Search result flash — pulse a camper's cells so they're easy to spot. */
+@keyframes kid-flash {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(236, 116, 79, 0); }
+  35% { box-shadow: 0 0 0 3px rgba(236, 116, 79, 0.95); }
+}
+.kid-flash {
+  animation: kid-flash 0.75s ease-in-out 3;
+  position: relative;
+  z-index: 5;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .camp-loader-logo,
   .camp-loader-ripple,
   .camp-bubble {
     animation: none;
+  }
+  .kid-flash {
+    animation: none;
+    box-shadow: 0 0 0 3px rgba(236, 116, 79, 0.95);
   }
   .camp-loader-ripple { opacity: 0.3; }
   .camp-bubble { display: none; }

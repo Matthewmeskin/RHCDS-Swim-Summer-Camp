@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState, useRef } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import Nav from "@/components/Nav";
 import CampLoader from "@/components/CampLoader";
 import ConfigNotice from "@/components/ConfigNotice";
@@ -97,7 +96,6 @@ export default function MasterSchedulePage() {
   const [hasEnrollment, setHasEnrollment] = useState(false);
   const [poolOpen, setPoolOpen] = useState(false);
   const builderDataRef = useRef<Awaited<ReturnType<typeof fetchAllBuilderData>> | null>(null);
-  const router = useRouter();
 
   useEffect(() => {
     if (!isSupabaseConfigured) {
@@ -485,6 +483,25 @@ export default function MasterSchedulePage() {
     }, 60);
   }
 
+  // Scroll to and flash every cell where a camper appears across the season.
+  function jumpToCamper(studentId: string, name: string) {
+    setGQuery("");
+    setView("allweeks");
+    setInstructorFilter("");
+    setGroupFilter(null);
+    setTimeout(() => {
+      const els = Array.from(document.querySelectorAll(`[data-kid="${studentId}"]`)) as HTMLElement[];
+      if (els.length === 0) {
+        setToast({ msg: `${name.split(" ")[0]} isn't scheduled yet.`, kind: "error" });
+        return;
+      }
+      els[0].scrollIntoView({ behavior: "smooth", block: "center" });
+      els.forEach((el) => el.classList.add("kid-flash"));
+      setTimeout(() => els.forEach((el) => el.classList.remove("kid-flash")), 2400);
+      setToast({ msg: `${name} — ${els.length} lesson${els.length === 1 ? "" : "s"} highlighted`, kind: "success" });
+    }, 80);
+  }
+
   return (
     <main className="min-h-screen">
       <Nav backHref="/admin" />
@@ -532,7 +549,7 @@ export default function MasterSchedulePage() {
                   return (
                     <li key={s.id}>
                       <button
-                        onClick={() => { setGQuery(""); router.push(`/admin/camper?id=${s.id}`); }}
+                        onClick={() => jumpToCamper(s.id, `${s.first_name} ${s.last_name}`)}
                         className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-brand-sand"
                       >
                         {g ? (
@@ -1285,6 +1302,7 @@ function KidPills({
         return (
           <span
             key={s.id}
+            data-kid={s.id}
             onPointerDown={canDrag ? (e) => onChipPointerDown!(e, cellKey!, s.id) : undefined}
             style={canDrag ? { touchAction: "none" } : undefined}
             className={`flex items-center justify-between gap-0.5 rounded px-1 py-0.5 text-[11px] font-bold leading-tight ${levelPill(s.level)} ${canDrag ? "cursor-grab active:cursor-grabbing" : ""} ${draggingId === s.id ? "opacity-40" : ""}`}
