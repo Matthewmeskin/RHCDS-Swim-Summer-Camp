@@ -6,6 +6,7 @@ import CampLoader from "@/components/CampLoader";
 import Toast, { type ToastKind } from "@/components/Toast";
 import ConfigNotice from "@/components/ConfigNotice";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
+import { fireConfetti } from "@/lib/confetti";
 import {
   fetchAvailabilityRequests,
   fetchInstructorOffSlots,
@@ -89,6 +90,7 @@ export default function RequestsPage() {
         msg: approve ? "Approved & applied ✓" : "Denied — no change made ✓",
         kind: "success",
       });
+      if (approve) fireConfetti();
       load();
     } catch (e) {
       setToast({ msg: (e as Error).message ?? "Failed", kind: "error" });

@@ -9,6 +9,7 @@ import CalendarGrid from "@/components/CalendarGrid";
 import StudentModal from "@/components/StudentModal";
 import AvailabilityEditor from "@/components/AvailabilityEditor";
 import ConfigNotice from "@/components/ConfigNotice";
+import { fireConfetti } from "@/lib/confetti";
 import { isSupabaseConfigured } from "@/lib/supabaseClient";
 import {
   fetchInstructorWeek,
@@ -331,6 +332,7 @@ export default function InstructorView() {
             onSaved={() => {
               setEditingAvail(false);
               setRequestSent(true);
+              fireConfetti();
             }}
           />
         ) : null}

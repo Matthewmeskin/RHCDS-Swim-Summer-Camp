@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { fetchFullBackup } from "@/lib/data";
+import { fireConfetti } from "@/lib/confetti";
 import { formatRelative } from "@/lib/format";
 
 /**
@@ -37,6 +38,7 @@ export default function BackupCard() {
       setLast(now);
       const count = Object.values(backup.tables).reduce((n, rows) => n + (rows as unknown[]).length, 0);
       setMsg(`Saved a backup of ${count.toLocaleString()} records to your device ✓`);
+      fireConfetti();
     } catch (e) {
       setMsg((e as Error).message ?? "Couldn't make a backup — please try again.");
     } finally {

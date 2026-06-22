@@ -19,6 +19,7 @@ import {
   type OffLite,
 } from "@/lib/data";
 import AutoFillModal from "@/components/AutoFillModal";
+import { fireConfetti } from "@/lib/confetti";
 import { parseISODate, formatDayHeader, formatSlotLabel } from "@/lib/format";
 import { getWeekDays, saveAllWeeks, fetchAllBuilderData, copyInstructorWeekToLater } from "@/lib/builder";
 import { autoAssignWeek, computePrior, type AutoConfig } from "@/lib/autoSchedule";
@@ -269,6 +270,7 @@ export default function MasterSchedulePage() {
     try {
       const n = await saveAllWeeks(assignments, dateToWeek, weeks.map((w) => w.week_number));
       setToast({ msg: `Saved · ${n} lessons across the season`, kind: "success" });
+      fireConfetti();
       setBuilding(false);
       const sl = await fetchAllScheduleSlots();
       setSlots(sl);
@@ -377,6 +379,7 @@ export default function MasterSchedulePage() {
     try {
       await setWeekPublished(weekNumber, next);
       setToast({ msg: next ? `Week ${weekNumber} is now visible to instructors ✓` : `Week ${weekNumber} hidden from instructors`, kind: "success" });
+      if (next) fireConfetti();
     } catch (e) {
       setWeeks((prev) => prev.map((w) => (w.week_number === weekNumber ? { ...w, schedule_published: !next } : w)));
       setToast({ msg: (e as Error).message ?? "Couldn't update visibility", kind: "error" });
