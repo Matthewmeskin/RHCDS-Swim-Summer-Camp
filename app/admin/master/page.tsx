@@ -917,7 +917,8 @@ function WeekGrid({
                     const kids = (kidsByCell.get(key) ?? [])
                       .map((id) => studentsById.get(id))
                       .filter((s): s is Student => Boolean(s));
-                    const offEmpty = !building && showOff && offByCell.has(key) && kids.length === 0;
+                    const isOff = showOff && offByCell.has(key);
+                    const offEmpty = isOff && kids.length === 0;
                     return (
                       <td
                         key={key}
@@ -927,9 +928,15 @@ function WeekGrid({
                         } ${
                           building && dragOverKey === key
                             ? "bg-brand-aqua/30 ring-2 ring-inset ring-brand-green"
-                            : offEmpty ? "bg-brand-orange/10" : kids.length === 0 && !building ? "bg-gray-50" : ""
+                            : isOff ? "bg-brand-orange/10" : kids.length === 0 && !building ? "bg-gray-50" : ""
                         }`}
                       >
+                        {/* Off-time warning — shown in build mode too so you don't schedule over it */}
+                        {building && isOff ? (
+                          <span className="mb-0.5 block rounded bg-brand-orange/20 px-1 text-center text-[10px] font-bold uppercase tracking-wide text-brand-orange">
+                            Off
+                          </span>
+                        ) : null}
                         <KidPills
                           kids={kids}
                           offEmpty={offEmpty}
@@ -942,7 +949,9 @@ function WeekGrid({
                         {building && onAdd ? (
                           <button
                             onClick={() => onAdd(ins.id, d, hhmm(t))}
-                            className="mt-0.5 block w-full rounded border border-dashed border-brand-green/40 py-0.5 text-center text-[11px] font-bold text-brand-green/70 hover:bg-brand-sand"
+                            className={`mt-0.5 block w-full rounded border border-dashed py-0.5 text-center text-[11px] font-bold hover:bg-brand-sand ${
+                              isOff ? "border-brand-orange/50 text-brand-orange/80" : "border-brand-green/40 text-brand-green/70"
+                            }`}
                           >
                             +
                           </button>
