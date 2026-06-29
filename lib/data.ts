@@ -66,15 +66,18 @@ export async function saveInstructor(rec: {
   email: string | null;
   slug?: string | null;
   active?: boolean;
+  phone?: string | null;
 }): Promise<void> {
   const db = requireSupabase();
-  const payload = {
+  const payload: Record<string, unknown> = {
     name: rec.name,
     role: rec.role,
     email: rec.email,
     slug: rec.slug || slugify(rec.name),
     active: rec.active ?? true,
   };
+  // Only touch phone when provided, so it isn't wiped by edits that omit it.
+  if (rec.phone !== undefined) payload.phone = rec.phone;
   if (rec.id) {
     const { error } = await db.from("instructors").update(payload).eq("id", rec.id);
     if (error) throw error;

@@ -281,14 +281,29 @@ function InstructorEditor({
   const [name, setName] = useState(value.name ?? "");
   const [role, setRole] = useState<Role>((value.role as Role) ?? "instructor");
   const [email, setEmail] = useState(value.email ?? "");
+  const [phone, setPhone] = useState(value.phone ?? "");
   const [active, setActive] = useState(value.active !== false);
   const [busy, setBusy] = useState(false);
+
+  // Imported questionnaire answers (read-only reference).
+  const INFO_LABELS: [string, string][] = [
+    ["gender_pref", "Gender preference"],
+    ["age_pref", "Age preference"],
+    ["ability_pref", "Swim-ability preference"],
+    ["limitations", "Limitations"],
+    ["special_needs_ok", "OK with special needs"],
+    ["experience", "Prior experience"],
+    ["fill_time", "How they want to fill time"],
+    ["notes", "Other notes"],
+  ];
+  const info = value.info ?? null;
+  const infoRows = info ? INFO_LABELS.filter(([k]) => info[k]) : [];
 
   async function save() {
     if (!name.trim()) return onError("Name is required");
     setBusy(true);
     try {
-      await saveInstructor({ id: value.id, name: name.trim(), role, email: email.trim() || null, slug: value.slug, active });
+      await saveInstructor({ id: value.id, name: name.trim(), role, email: email.trim() || null, slug: value.slug, active, phone: phone.trim() || null });
       onSaved();
     } catch (e) {
       onError((e as Error).message ?? "Save failed");
@@ -307,9 +322,25 @@ function InstructorEditor({
           </select>
         </Field>
         <Field label="Email (optional)"><input className={inputCls} value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
+        <Field label="Cell phone (optional)"><input className={inputCls} value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="e.g. 310-555-1234" /></Field>
         <label className="flex items-center gap-2 text-sm font-semibold">
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> Active
         </label>
+
+        {infoRows.length > 0 ? (
+          <div className="rounded-xl border border-brand-green/15 bg-white p-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-brand-green">From their info form</p>
+            <dl className="mt-2 space-y-2">
+              {infoRows.map(([k, label]) => (
+                <div key={k}>
+                  <dt className="text-[11px] font-bold uppercase tracking-wide text-brand-text/50">{label}</dt>
+                  <dd className="text-sm text-brand-text/80">{info![k]}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
+        ) : null}
+
         <div className="flex gap-2 pt-1">
           <button onClick={save} disabled={busy} className="camp-btn flex-1">{busy ? "Saving…" : "Save"}</button>
           <button onClick={onClose} className="camp-btn-ghost">Cancel</button>

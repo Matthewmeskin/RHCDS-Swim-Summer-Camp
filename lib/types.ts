@@ -13,6 +13,10 @@ export interface Instructor {
   access_code?: string | null;
   /** Synthetic login identity used by Supabase auth. */
   login_email?: string | null;
+  /** Cell phone (from the instructor info import). */
+  phone?: string | null;
+  /** Questionnaire answers (preferences, experience, notes) keyed by field. */
+  info?: Record<string, string> | null;
 }
 
 export interface Student {
