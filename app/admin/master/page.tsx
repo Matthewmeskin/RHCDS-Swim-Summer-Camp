@@ -97,6 +97,12 @@ export default function MasterSchedulePage() {
   const [autoBusy, setAutoBusy] = useState(false);
   const [hasEnrollment, setHasEnrollment] = useState(false);
   const [poolOpen, setPoolOpen] = useState(false);
+  // What the last Auto-fill added: `${cellKey}::${studentId}` set (for the ✨ highlight)
+  // plus a plain-language summary that stays put until you Save or dismiss it.
+  const [autoAdded, setAutoAdded] = useState<Set<string>>(new Set());
+  const [autoSummary, setAutoSummary] = useState<
+    { added: number; perWeek: { wk: number; n: number }[]; couldnt: string[] } | null
+  >(null);
   const builderDataRef = useRef<Awaited<ReturnType<typeof fetchAllBuilderData>> | null>(null);
 
   useEffect(() => {
@@ -254,6 +260,10 @@ export default function MasterSchedulePage() {
   function addKid(studentId: string) {
     if (!picker) return;
     const k = `${picker.instructorId}__${picker.date}__${picker.hhmm}`;
+    // Same guard as drag-and-drop: don't silently book over an instructor's time off.
+    if (offByCell.has(k) && !confirm("That's the instructor's time off. Schedule a lesson there anyway?")) {
+      return;
+    }
     setAssignments((prev) => {
       const cur = prev[k] ?? [];
       if (cur.includes(studentId)) return prev;
@@ -273,6 +283,8 @@ export default function MasterSchedulePage() {
       setToast({ msg: `Saved · ${n} lessons across the season`, kind: "success" });
       fireConfetti();
       setBuilding(false);
+      setAutoAdded(new Set());
+      setAutoSummary(null);
       const sl = await fetchAllScheduleSlots();
       setSlots(sl);
     } catch (e) {
@@ -340,7 +352,6 @@ export default function MasterSchedulePage() {
     const activeStudents = bd.students.filter((s) => s.active !== false);
     const weeksToRun = opts.scope === "all" ? bd.weeks.map((w) => w.week_number) : [opts.targetWeek];
     let working = { ...assignmentsRef.current };
-    let placed = 0;
     const unplaced: string[] = [];
     for (const wk of weeksToRun) {
       const weekObj = bd.weeks.find((w) => w.week_number === wk);
@@ -359,16 +370,41 @@ export default function MasterSchedulePage() {
         lessonsByStudent,
       });
       working = res.assignments;
-      placed += res.report.placed;
       res.report.unplaced.forEach((u) => unplaced.push(u.name));
     }
     setAssignments(working);
     const couldnt = Array.from(new Set(unplaced));
-    toastWithUndo(
-      `Auto-fill: ${placed} placed${couldnt.length ? ` · ${couldnt.length} couldn't place` : ""} — review & Save`,
-      couldnt.length ? "error" : "success",
-      snapshot
-    );
+
+    // Diff against the pre-fill snapshot so we can show exactly what changed.
+    const added = new Set<string>();
+    const perWeek = new Map<number, number>();
+    for (const [k, ids] of Object.entries(working)) {
+      const before = new Set(snapshot[k] ?? []);
+      for (const id of ids) {
+        if (before.has(id)) continue;
+        added.add(`${k}::${id}`);
+        const date = k.split("__")[1];
+        const wk = bd.dateToWeek[date];
+        if (wk != null) perWeek.set(wk, (perWeek.get(wk) ?? 0) + 1);
+      }
+    }
+    setAutoAdded(added);
+    setAutoSummary({
+      added: added.size,
+      perWeek: Array.from(perWeek.entries()).map(([wk, n]) => ({ wk, n })).sort((a, b) => a.wk - b.wk),
+      couldnt,
+    });
+
+    setToast({
+      msg: `✨ Auto-fill added ${added.size} lesson${added.size === 1 ? "" : "s"}${couldnt.length ? ` · ${couldnt.length} couldn't place` : ""} — review & Save`,
+      kind: couldnt.length ? "error" : "success",
+      undo: () => {
+        setAssignments(snapshot);
+        setAutoAdded(new Set());
+        setAutoSummary(null);
+        setToast({ msg: "Undone ✓", kind: "success" });
+      },
+    });
   }
 
   // Publish/hide a week's schedule to instructors (availability is unaffected).
@@ -526,13 +562,23 @@ export default function MasterSchedulePage() {
     setInstructorFilter("");
     setGroupFilter(null);
     setTimeout(() => {
+      // Clear any highlight lingering from a previous search so only this kid pulses.
+      document.querySelectorAll(".kid-flash").forEach((el) => el.classList.remove("kid-flash"));
       const els = Array.from(document.querySelectorAll(`[data-kid="${studentId}"]`)) as HTMLElement[];
       if (els.length === 0) {
         setToast({ msg: `${name.split(" ")[0]} isn't scheduled yet.`, kind: "error" });
         return;
       }
-      els[0].scrollIntoView({ behavior: "smooth", block: "center" });
-      els.forEach((el) => el.classList.add("kid-flash"));
+      // Center the cell both vertically AND horizontally — most kids' first lesson
+      // is in Week 1, so without inline-centering every search lands in the same
+      // spot and the new kid's pill stays scrolled off to the side.
+      els[0].scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
+      // Force-restart the flash animation even if the class was just present.
+      els.forEach((el) => {
+        el.classList.remove("kid-flash");
+        void el.offsetWidth;
+        el.classList.add("kid-flash");
+      });
       setTimeout(() => els.forEach((el) => el.classList.remove("kid-flash")), 2400);
       setToast({ msg: `${name} — ${els.length} lesson${els.length === 1 ? "" : "s"} highlighted`, kind: "success" });
     }, 80);
@@ -644,7 +690,7 @@ export default function MasterSchedulePage() {
                     <button onClick={saveBuild} disabled={saving} className="camp-btn px-4 py-1.5 text-sm">
                       {saving ? "Saving…" : "💾 Save schedule"}
                     </button>
-                    <button onClick={() => setBuilding(false)} className="camp-btn-ghost px-4 py-1.5 text-sm">
+                    <button onClick={() => { setBuilding(false); setAutoAdded(new Set()); setAutoSummary(null); }} className="camp-btn-ghost px-4 py-1.5 text-sm">
                       Cancel
                     </button>
                     <span className="text-xs font-semibold text-brand-orange">Editing — drag, tap a slot, or Auto-fill</span>
@@ -702,6 +748,42 @@ export default function MasterSchedulePage() {
 
             {building ? (
               <div className="mt-3 space-y-3">
+                {autoSummary ? (
+                  <div className="rounded-2xl border-2 border-brand-aqua bg-brand-aqualight/40 p-3">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="text-lg">✨</span>
+                      <span className="font-display text-lg text-brand-green">
+                        Auto-fill added {autoSummary.added} lesson{autoSummary.added === 1 ? "" : "s"}
+                      </span>
+                      <button
+                        onClick={() => { setAutoAdded(new Set()); setAutoSummary(null); }}
+                        className="ml-auto rounded-full border border-brand-green/40 bg-white px-3 py-1 text-xs font-bold text-brand-green hover:bg-brand-sand"
+                      >
+                        Got it — hide highlights
+                      </button>
+                    </div>
+                    <p className="mt-1 text-xs text-brand-text/70">
+                      Every lesson it just placed is marked with a <span className="font-bold text-brand-green">✨</span> and an aqua ring below. Nothing is saved yet — review, then tap <strong>💾 Save schedule</strong>.
+                    </p>
+                    {autoSummary.perWeek.length > 0 ? (
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {autoSummary.perWeek.map((p) => (
+                          <span key={p.wk} className="rounded-full bg-white px-2.5 py-1 text-xs font-bold text-brand-green ring-1 ring-brand-green/20">
+                            Wk {p.wk}: {p.n}
+                          </span>
+                        ))}
+                      </div>
+                    ) : null}
+                    {autoSummary.couldnt.length > 0 ? (
+                      <div className="mt-2 rounded-xl border border-brand-orange/40 bg-brand-orange/10 p-2">
+                        <span className="text-xs font-bold text-brand-orange">
+                          {autoSummary.couldnt.length} couldn&apos;t be placed (no open slot):
+                        </span>
+                        <span className="ml-1 text-xs text-brand-text/70">{autoSummary.couldnt.join(", ")}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
                 {instructorFilter ? (
                   <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-brand-green/20 bg-brand-green/5 p-3 text-sm">
                     <span className="font-semibold text-brand-green">Copy a week to all later weeks:</span>
@@ -777,6 +859,7 @@ export default function MasterSchedulePage() {
                 onRemove={removeKid}
                 onToggleOff={toggleOff}
                 onTogglePublish={togglePublish}
+                autoAdded={building ? autoAdded : undefined}
                 dragOverKey={dragOverKey}
                 draggingId={draggingId}
                 onChipPointerDown={startChipDrag}
@@ -1084,7 +1167,7 @@ function Overview(props: {
 
 function WeekGrid({
   weekNumber, days, instructors, kidsByCell, offByCell, studentsById, onPick, showOff,
-  building = false, onAdd, onRemove, onToggleOff, dragOverKey, draggingId, onChipPointerDown,
+  building = false, onAdd, onRemove, onToggleOff, autoAdded, dragOverKey, draggingId, onChipPointerDown,
 }: {
   weekNumber: number;
   days: string[];
@@ -1098,6 +1181,7 @@ function WeekGrid({
   onAdd?: (instructorId: string, date: string, hh: string) => void;
   onRemove?: (instructorId: string, date: string, hh: string, studentId: string) => void;
   onToggleOff?: (instructorId: string, date: string, hh: string, weekNumber: number) => void;
+  autoAdded?: Set<string>;
   dragOverKey?: string | null;
   draggingId?: string | null;
   onChipPointerDown?: (e: React.PointerEvent, cellKey: string, studentId: string) => void;
@@ -1183,6 +1267,7 @@ function WeekGrid({
                           cellKey={key}
                           draggingId={draggingId}
                           onChipPointerDown={building ? onChipPointerDown : undefined}
+                          autoAdded={autoAdded}
                         />
                         {building && onAdd ? (
                           <div className="mt-0.5 flex items-stretch gap-0.5">
@@ -1254,11 +1339,12 @@ function AllWeeksDetail(props: {
   onRemove: (instructorId: string, date: string, hh: string, studentId: string) => void;
   onToggleOff?: (instructorId: string, date: string, hh: string, weekNumber: number) => void;
   onTogglePublish?: (weekNumber: number) => void;
+  autoAdded?: Set<string>;
   dragOverKey?: string | null;
   draggingId?: string | null;
   onChipPointerDown?: (e: React.PointerEvent, cellKey: string, studentId: string) => void;
 }) {
-  const { instructors, weeks, kidsByCell, offByCell, studentsById, onPick, showOff, setShowOff, building, onAdd, onRemove, onToggleOff, onTogglePublish, dragOverKey, draggingId, onChipPointerDown } = props;
+  const { instructors, weeks, kidsByCell, offByCell, studentsById, onPick, showOff, setShowOff, building, onAdd, onRemove, onToggleOff, onTogglePublish, autoAdded, dragOverKey, draggingId, onChipPointerDown } = props;
 
   return (
     <>
@@ -1315,6 +1401,7 @@ function AllWeeksDetail(props: {
                 onAdd={onAdd}
                 onRemove={onRemove}
                 onToggleOff={onToggleOff}
+                autoAdded={autoAdded}
                 dragOverKey={dragOverKey}
                 draggingId={draggingId}
                 onChipPointerDown={onChipPointerDown}
@@ -1335,7 +1422,7 @@ function AllWeeksDetail(props: {
 /* ------------------------- Shared kid pills & legend --------------------- */
 
 function KidPills({
-  kids, offEmpty, onPick, onRemove, cellKey, draggingId, onChipPointerDown,
+  kids, offEmpty, onPick, onRemove, cellKey, draggingId, onChipPointerDown, autoAdded,
 }: {
   kids: Student[];
   offEmpty: boolean;
@@ -1344,6 +1431,7 @@ function KidPills({
   cellKey?: string;
   draggingId?: string | null;
   onChipPointerDown?: (e: React.PointerEvent, cellKey: string, studentId: string) => void;
+  autoAdded?: Set<string>;
 }) {
   if (kids.length === 0) {
     return onRemove ? null : (
@@ -1357,20 +1445,22 @@ function KidPills({
       {kids.map((s) => {
         const grp = groupByLevel(s.group_level);
         const canDrag = Boolean(onChipPointerDown && cellKey);
+        const isNew = Boolean(autoAdded && cellKey && autoAdded.has(`${cellKey}::${s.id}`));
         return (
           <span
             key={s.id}
             data-kid={s.id}
             onPointerDown={canDrag ? (e) => onChipPointerDown!(e, cellKey!, s.id) : undefined}
             style={canDrag ? { touchAction: "none" } : undefined}
-            className={`flex items-center justify-between gap-0.5 rounded px-1 py-0.5 text-[11px] font-bold leading-tight ${levelPill(s.level)} ${canDrag ? "cursor-grab active:cursor-grabbing" : ""} ${draggingId === s.id ? "opacity-40" : ""}`}
+            className={`flex items-center justify-between gap-0.5 rounded px-1 py-0.5 text-[11px] font-bold leading-tight ${levelPill(s.level)} ${canDrag ? "cursor-grab active:cursor-grabbing" : ""} ${draggingId === s.id ? "opacity-40" : ""} ${isNew ? "ring-2 ring-brand-aqua ring-offset-1" : ""}`}
+            title={isNew ? "Just added by Auto-fill" : undefined}
           >
             <button
               onClick={() => onPick(s)}
-              title={`${s.first_name} ${s.last_name}${grp ? ` · ${grp.emoji} ${grp.name}` : ""}${s.level ? ` · ${s.level}` : ""} — tap for details`}
+              title={`${s.first_name} ${s.last_name}${grp ? ` · ${grp.emoji} ${grp.name}` : ""}${s.level ? ` · ${s.level}` : ""}${isNew ? " · ✨ auto-filled" : ""} — tap for details`}
               className="flex-1 truncate text-left transition hover:brightness-90"
             >
-              {grp ? `${grp.emoji} ` : ""}{s.first_name} {s.last_name}
+              {isNew ? "✨ " : ""}{grp ? `${grp.emoji} ` : ""}{s.first_name} {s.last_name}
             </button>
             {onRemove ? (
               <button onClick={() => onRemove(s)} aria-label="Remove" className="shrink-0 rounded px-0.5 leading-none hover:bg-black/20">
