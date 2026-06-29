@@ -32,6 +32,7 @@ function CamperScheduleInner() {
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [query, setQuery] = useState("");
+  const [activeIndex, setActiveIndex] = useState(0);
   const [selected, setSelected] = useState<Student | null>(null);
   const [lessons, setLessons] = useState<CamperLessonRow[]>([]);
   const [weekFilter, setWeekFilter] = useState<number | null>(null);
@@ -88,6 +89,24 @@ function CamperScheduleInner() {
       .slice(0, 8);
   }, [students, query]);
 
+  // Reset the keyboard highlight whenever the result list changes.
+  useEffect(() => { setActiveIndex(0); }, [query]);
+
+  function onSearchKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (matches.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % matches.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => (i - 1 + matches.length) % matches.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      const s = matches[activeIndex];
+      if (s) pick(s);
+    }
+  }
+
   // Group lessons by week.
   const byWeek = useMemo(() => {
     const m = new Map<number, CamperLessonRow[]>();
@@ -127,18 +146,21 @@ function CamperScheduleInner() {
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onSearchKeyDown}
               placeholder={loading ? "Loading…" : "Search a camper by name…"}
               className="w-full rounded-full border-2 border-brand-green bg-white px-5 py-2.5 text-sm"
             />
             {matches.length > 0 ? (
               <ul className="absolute z-10 mt-1 max-h-72 w-full overflow-auto rounded-2xl border-2 border-brand-green bg-white shadow-lg">
-                {matches.map((s) => {
+                {matches.map((s, i) => {
                   const g = groupByLevel(s.group_level);
                   return (
                     <li key={s.id}>
                       <button
+                        data-idx={i}
                         onClick={() => pick(s)}
-                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-brand-sand"
+                        onMouseMove={() => setActiveIndex(i)}
+                        className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm ${activeIndex === i ? "bg-brand-sand" : "hover:bg-brand-sand"}`}
                       >
                         {g ? <span>{g.emoji}</span> : null}
                         <span className="font-semibold">{s.first_name} {s.last_name}</span>

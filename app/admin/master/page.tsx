@@ -80,6 +80,7 @@ export default function MasterSchedulePage() {
   const [saving, setSaving] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: ToastKind; undo?: () => void } | null>(null);
   const [gQuery, setGQuery] = useState("");
+  const [gActiveIndex, setGActiveIndex] = useState(0);
 
   // ----- Drag-and-drop (build mode): move a camper between cells -----
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -132,6 +133,25 @@ export default function MasterSchedulePage() {
     students.forEach((s) => m.set(s.id, s));
     return m;
   }, [students]);
+
+  // Flat result list for the global search (instructors first, then campers) so
+  // ↑/↓ can walk the whole dropdown and Enter opens the highlighted row.
+  const gResults = useMemo(() => {
+    const ql = gQuery.trim().toLowerCase();
+    if (!ql) return [] as ({ kind: "ins"; ins: Instructor } | { kind: "camp"; camp: Student })[];
+    const ins = instructors
+      .filter((i) => i.name.toLowerCase().includes(ql))
+      .slice(0, 6)
+      .map((i) => ({ kind: "ins" as const, ins: i }));
+    const camp = students
+      .filter((s) => `${s.first_name} ${s.last_name}`.toLowerCase().includes(ql))
+      .slice(0, 10)
+      .map((s) => ({ kind: "camp" as const, camp: s }));
+    return [...ins, ...camp];
+  }, [gQuery, instructors, students]);
+
+  // Reset the keyboard highlight whenever the query changes.
+  useEffect(() => { setGActiveIndex(0); }, [gQuery]);
 
   const inGroup = (studentId: string) =>
     groupFilter == null || studentsById.get(studentId)?.group_level === groupFilter;
@@ -540,6 +560,27 @@ export default function MasterSchedulePage() {
 
   const ready = !loading && weeks.length > 0 && instructors.length > 0;
 
+  function gSelect(idx: number) {
+    const r = gResults[idx];
+    if (!r) return;
+    if (r.kind === "ins") jumpToInstructor(r.ins.id);
+    else jumpToCamper(r.camp.id, `${r.camp.first_name} ${r.camp.last_name}`);
+  }
+
+  function onGKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (gResults.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setGActiveIndex((i) => (i + 1) % gResults.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setGActiveIndex((i) => (i - 1 + gResults.length) % gResults.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      gSelect(gActiveIndex);
+    }
+  }
+
   function jumpToInstructor(instructorId: string) {
     setGQuery("");
     setView("allweeks");
@@ -599,59 +640,62 @@ export default function MasterSchedulePage() {
           <input
             value={gQuery}
             onChange={(e) => setGQuery(e.target.value)}
+            onKeyDown={onGKeyDown}
             placeholder="🔍 Search campers or instructors…"
             className="w-full rounded-full border-2 border-brand-green bg-white px-5 py-2.5 text-sm"
           />
-          {gQuery.trim() ? (() => {
-            const ql = gQuery.trim().toLowerCase();
-            const insMatches = instructors.filter((i) => i.name.toLowerCase().includes(ql)).slice(0, 6);
-            const campMatches = students.filter((s) => `${s.first_name} ${s.last_name}`.toLowerCase().includes(ql)).slice(0, 10);
-            return (
-              <ul className="absolute z-30 mt-1 max-h-96 w-full overflow-auto rounded-2xl border-2 border-brand-green bg-white shadow-lg">
-                {insMatches.length > 0 ? (
-                  <li className="bg-brand-aqualight px-4 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-text/60">Instructors</li>
-                ) : null}
-                {insMatches.map((i) => (
-                  <li key={`ins-${i.id}`}>
-                    <button
-                      onClick={() => jumpToInstructor(i.id)}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-brand-sand"
-                    >
-                      <span className="text-base">🏊</span>
-                      <span className="flex-1 truncate font-semibold">{i.name}</span>
-                      <span className="text-xs text-brand-text/40">Go to schedule →</span>
-                    </button>
-                  </li>
-                ))}
-                {campMatches.length > 0 ? (
-                  <li className="bg-brand-aqualight px-4 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-text/60">Campers</li>
-                ) : null}
-                {campMatches.map((s) => {
-                  const g = groupByLevel(s.group_level);
-                  return (
-                    <li key={s.id}>
+          {gQuery.trim() ? (
+            <ul className="absolute z-30 mt-1 max-h-96 w-full overflow-auto rounded-2xl border-2 border-brand-green bg-white shadow-lg">
+              {gResults.length === 0 ? (
+                <li className="px-4 py-3 text-center text-sm text-brand-text/50">No matches found</li>
+              ) : null}
+              {gResults.map((r, idx) => {
+                const active = gActiveIndex === idx;
+                const prev = gResults[idx - 1];
+                const header =
+                  r.kind === "ins" && idx === 0 ? "Instructors" : r.kind === "camp" && prev?.kind !== "camp" ? "Campers" : null;
+                return (
+                  <li key={r.kind === "ins" ? `ins-${r.ins.id}` : r.camp.id}>
+                    {header ? (
+                      <div className="bg-brand-aqualight px-4 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-text/60">{header}</div>
+                    ) : null}
+                    {r.kind === "ins" ? (
                       <button
-                        onClick={() => jumpToCamper(s.id, `${s.first_name} ${s.last_name}`)}
-                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-brand-sand"
+                        data-idx={idx}
+                        onClick={() => jumpToInstructor(r.ins.id)}
+                        onMouseMove={() => setGActiveIndex(idx)}
+                        className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm ${active ? "bg-brand-sand" : "hover:bg-brand-sand"}`}
                       >
-                        {g ? (
-                          <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ backgroundColor: g.color }}>
-                            {g.emoji}
-                          </span>
-                        ) : null}
-                        <span className="flex-1 truncate font-semibold">{s.first_name} {s.last_name}</span>
-                        {g ? <span className="text-xs text-brand-text/60">{g.name}</span> : null}
-                        {s.level ? <span className="text-xs text-brand-text/40">{s.level}</span> : null}
+                        <span className="text-base">🏊</span>
+                        <span className="flex-1 truncate font-semibold">{r.ins.name}</span>
+                        <span className="text-xs text-brand-text/40">Go to schedule →</span>
                       </button>
-                    </li>
-                  );
-                })}
-                {insMatches.length === 0 && campMatches.length === 0 ? (
-                  <li className="px-4 py-3 text-center text-sm text-brand-text/50">No matches found</li>
-                ) : null}
-              </ul>
-            );
-          })() : null}
+                    ) : (() => {
+                      const s = r.camp;
+                      const g = groupByLevel(s.group_level);
+                      return (
+                        <button
+                          data-idx={idx}
+                          onClick={() => jumpToCamper(s.id, `${s.first_name} ${s.last_name}`)}
+                          onMouseMove={() => setGActiveIndex(idx)}
+                          className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm ${active ? "bg-brand-sand" : "hover:bg-brand-sand"}`}
+                        >
+                          {g ? (
+                            <span className="rounded-full px-1.5 py-0.5 text-[10px] font-bold text-white" style={{ backgroundColor: g.color }}>
+                              {g.emoji}
+                            </span>
+                          ) : null}
+                          <span className="flex-1 truncate font-semibold">{s.first_name} {s.last_name}</span>
+                          {g ? <span className="text-xs text-brand-text/60">{g.name}</span> : null}
+                          {s.level ? <span className="text-xs text-brand-text/40">{s.level}</span> : null}
+                        </button>
+                      );
+                    })()}
+                  </li>
+                );
+              })}
+            </ul>
+          ) : null}
         </div>
 
         {loading ? (
