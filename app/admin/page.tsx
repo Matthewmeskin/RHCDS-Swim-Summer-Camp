@@ -113,6 +113,17 @@ export default function AdminDashboard() {
     );
   }
 
+  const secondary: { href: string; icon: string; title: string; desc: string; badge?: number }[] = [
+    { href: "/admin/requests", icon: "📥", title: "Requests", desc: "Approve availability changes.", badge: pendingReqs },
+    { href: "/admin/coverage", icon: "📊", title: "Coverage", desc: "Empty slots & unscheduled kids." },
+    { href: "/admin/roster", icon: "👥", title: "Roster", desc: "Add / edit kids & instructors." },
+    { href: "/admin/camper", icon: "🧾", title: "Camper Schedule", desc: "One camper's summer — print / PDF." },
+    { href: "/admin/sheets", icon: "🏊", title: "Pool-Deck Sheets", desc: "Daily lineups per instructor." },
+    { href: "/admin/instructors", icon: "🔗", title: "Instructor Links", desc: "Personal links & who's set availability." },
+    { href: "/admin/levels", icon: "🐬", title: "Swim Level Guide", desc: "The 6 groups instructors see." },
+    { href: "/admin/import", icon: "📥", title: "Imports", desc: "Bring in rosters, schedules & more." },
+  ];
+
   return (
     <main className="min-h-screen">
       <Nav backHref="/" />
@@ -143,81 +154,42 @@ export default function AdminDashboard() {
         {/* Today — what needs the director's attention right now */}
         <TodayPanel items={todoItems} loading={todayLoading} />
 
-        {/* Pending availability requests */}
-        <Link
-          href="/admin/requests"
-          className="camp-card mt-6 flex items-center gap-4 p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
-        >
-          <div className="text-3xl">📥</div>
-          <div className="flex-1">
-            <h2 className="font-display text-2xl text-brand-green">Availability Requests</h2>
-            <p className="text-sm text-brand-text/70">
-              Approve or deny instructor availability changes.
-            </p>
-          </div>
-          {pendingReqs > 0 ? (
-            <span className="rounded-full bg-brand-orange px-3 py-1 text-sm font-bold text-white">
-              {pendingReqs} pending
-            </span>
-          ) : (
-            <span className="text-2xl text-brand-green">→</span>
-          )}
-        </Link>
-
-        {/* Master schedule (whole summer) — view + build in one place */}
+        {/* Master Schedule — the hero. Everything day-to-day happens here. */}
         <Link
           href="/admin/master"
-          className="camp-card mt-6 flex items-center gap-4 p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
+          className="group mt-6 block rounded-3xl bg-brand-green p-6 text-white shadow-md transition-all duration-150 hover:-translate-y-0.5 hover:shadow-xl"
         >
-          <div className="text-3xl">📅</div>
-          <div className="flex-1">
-            <h2 className="font-display text-2xl text-brand-green">Master Schedule</h2>
-            <p className="text-sm text-brand-text/70">
-              The whole summer in one table — and tap <strong>Build</strong> to assign kids with
-              Auto-fill, drag-and-drop, and copy-week.
-            </p>
+          <div className="flex items-center gap-4">
+            <div className="text-4xl">📅</div>
+            <div className="flex-1">
+              <h2 className="font-display text-3xl">Master Schedule</h2>
+              <p className="mt-1 text-sm text-white/85">
+                The whole summer in one table — tap <strong>Build</strong> to assign kids with
+                Auto-fill, drag-and-drop, time-off and lifeguard duty.
+              </p>
+            </div>
+            <span className="text-3xl transition-transform group-hover:translate-x-1">→</span>
           </div>
-          <span className="text-2xl text-brand-green">→</span>
         </Link>
 
-        {/* Swim level guide */}
-        <Link
-          href="/admin/levels"
-          className="camp-card mt-4 flex items-center gap-4 p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
-        >
-          <div className="text-3xl">🐬</div>
-          <div className="flex-1">
-            <h2 className="font-display text-2xl text-brand-green">Swim Level Guide</h2>
-            <p className="text-sm text-brand-text/70">
-              The 6 groups (🐙🐠🐟🐢🐬🦈) — edit what instructors see for each level.
-            </p>
-          </div>
-          <span className="text-2xl text-brand-green">→</span>
-        </Link>
-
-        {/* Import cards */}
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Link href="/admin/import/students" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
-            <div className="text-3xl">🧑‍🎓</div>
-            <h2 className="mt-2 font-display text-2xl text-brand-green">Import Roster</h2>
-            <p className="mt-1 text-sm text-brand-text/70">
-              One CSV — students, swim groups (🐙🐠🐟🐢🐬🦈), and parent preferences.
-            </p>
-          </Link>
-          <Link href="/admin/import/schedule" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
-            <div className="text-3xl">🗓️</div>
-            <h2 className="mt-2 font-display text-2xl text-brand-green">Import Schedule</h2>
-            <p className="mt-1 text-sm text-brand-text/70">
-              Upload the Google Sheets schedule grid for a week.
-            </p>
-          </Link>
-          <Link href="/admin/import/enrollment" className="camp-card block p-6 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
-            <div className="text-3xl">📝</div>
-            <h2 className="mt-2 font-display text-2xl text-brand-green">Import Enrollment</h2>
-            <p className="mt-1 text-sm text-brand-text/70">
-              Who attends each week & how many lessons — powers Auto-fill.
-            </p>
-          </Link>
+        {/* Everything else — one compact, uniform grid */}
+        <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {secondary.map((it) => (
+            <Link
+              key={it.href}
+              href={it.href}
+              className="camp-card relative block p-4 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
+            >
+              {it.badge ? (
+                <span className="absolute right-3 top-3 rounded-full bg-brand-orange px-2 py-0.5 text-xs font-bold text-white">
+                  {it.badge}
+                </span>
+              ) : null}
+              <div className="text-2xl">{it.icon}</div>
+              <h2 className="mt-1 font-display text-lg text-brand-green">{it.title}</h2>
+              <p className="text-xs text-brand-text/70">{it.desc}</p>
+            </Link>
+          ))}
         </div>
 
         {/* Quick stats */}
@@ -226,68 +198,6 @@ export default function AdminDashboard() {
           <Stat label="Students" value={stats?.studentCount} />
           <Stat label={`Slots · Wk ${week}`} value={stats?.slotsThisWeek} />
         </div>
-
-        {/* Warnings panel */}
-        <section className="mt-6">
-          <h3 className="font-display text-2xl text-brand-green">Unmatched names</h3>
-          <p className="text-sm text-brand-text/70">
-            Schedule names (Week {week}) with no matching student record.
-          </p>
-          <div className="mt-2 flex flex-wrap gap-2">
-            {unmatched.length === 0 ? (
-              <span className="text-sm text-brand-text/50">None — all names matched 🎉</span>
-            ) : (
-              unmatched.map((n) => (
-                <span
-                  key={n}
-                  className="rounded-full bg-brand-orange px-3 py-1 text-xs font-bold text-white"
-                >
-                  {n}
-                </span>
-              ))
-            )}
-          </div>
-        </section>
-
-        {/* Roster + Coverage */}
-        <div className="mt-4 grid gap-4 sm:grid-cols-2">
-          <Link href="/admin/coverage" className="camp-card block p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
-            <div className="text-3xl">📊</div>
-            <h2 className="mt-2 font-display text-xl text-brand-green">Coverage</h2>
-            <p className="text-sm text-brand-text/70">Empty slots & kids not scheduled.</p>
-          </Link>
-          <Link href="/admin/roster" className="camp-card block p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
-            <div className="text-3xl">👥</div>
-            <h2 className="mt-2 font-display text-xl text-brand-green">Roster</h2>
-            <p className="text-sm text-brand-text/70">Add / edit kids & instructors.</p>
-          </Link>
-          <Link href="/admin/camper" className="camp-card block p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
-            <div className="text-3xl">🧾</div>
-            <h2 className="mt-2 font-display text-xl text-brand-green">Camper Schedule</h2>
-            <p className="text-sm text-brand-text/70">One camper&apos;s summer + instructor — print / PDF.</p>
-          </Link>
-          <Link href="/admin/sheets" className="camp-card block p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg">
-            <div className="text-3xl">🏊</div>
-            <h2 className="mt-2 font-display text-xl text-brand-green">Pool-Deck Sheets</h2>
-            <p className="text-sm text-brand-text/70">Laminate-ready daily lineups per instructor — print / PDF.</p>
-          </Link>
-        </div>
-
-        {/* Instructor links + availability */}
-        <Link
-          href="/admin/instructors"
-          className="camp-card mt-8 flex items-center gap-4 p-5 transition-all duration-150 hover:-translate-y-0.5 hover:shadow-lg"
-        >
-          <div className="text-3xl">🔗</div>
-          <div className="flex-1">
-            <h2 className="font-display text-2xl text-brand-green">Instructor Links & Availability</h2>
-            <p className="text-sm text-brand-text/70">
-              Share each instructor's personal link, and see who's set their
-              availability for the week.
-            </p>
-          </div>
-          <span className="text-2xl text-brand-green">→</span>
-        </Link>
 
         {/* Reassurance: one-click full backup */}
         <BackupCard />
