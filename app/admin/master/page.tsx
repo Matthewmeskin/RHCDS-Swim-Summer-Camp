@@ -15,6 +15,7 @@ import {
   fetchAllOffAvailability,
   fetchAllStudents,
   setWeekPublished,
+  setInstructorSlotOff,
   type SlotLite,
   type OffLite,
 } from "@/lib/data";
@@ -386,6 +387,38 @@ export default function MasterSchedulePage() {
     }
   }
 
+  // Admin: mark an instructor off (or clear) for one slot, straight from the
+  // build grid. Persists immediately and updates the orange time-off overlay.
+  async function toggleOff(instructorId: string, date: string, hh: string, weekNumber: number) {
+    const key = `${instructorId}__${date}__${hh}`;
+    const isOffNow = offByCell.has(key);
+    const start = `${hh}:00`;
+    if (!isOffNow) {
+      const hasLesson = (assignmentsRef.current[key]?.length ?? 0) > 0;
+      if (hasLesson && !confirm("This slot has a lesson scheduled. Mark the instructor off here anyway?")) return;
+    }
+    const next = !isOffNow;
+    // Optimistic overlay update.
+    setOff((prev) =>
+      next
+        ? [...prev, { instructor_id: instructorId, week_number: weekNumber, lesson_date: date, start_time: start }]
+        : prev.filter((o) => !(o.instructor_id === instructorId && o.lesson_date === date && hhmm(o.start_time) === hh))
+    );
+    try {
+      await setInstructorSlotOff(instructorId, date, start, weekNumber, next);
+      const nm = instructors.find((i) => i.id === instructorId)?.name ?? "Instructor";
+      setToast({ msg: next ? `${nm} marked off ✓` : `${nm}'s time off cleared`, kind: "success" });
+    } catch (e) {
+      // Roll back on failure.
+      setOff((prev) =>
+        next
+          ? prev.filter((o) => !(o.instructor_id === instructorId && o.lesson_date === date && hhmm(o.start_time) === hh))
+          : [...prev, { instructor_id: instructorId, week_number: weekNumber, lesson_date: date, start_time: start }]
+      );
+      setToast({ msg: (e as Error).message ?? "Couldn't update time off", kind: "error" });
+    }
+  }
+
   // Copy one instructor's chosen week to all later weeks (needs a selected instructor).
   function copyWeekToLater(weekNumber: number) {
     if (!instructorFilter) return;
@@ -742,6 +775,7 @@ export default function MasterSchedulePage() {
                 building={building}
                 onAdd={(instructorId, date, hh) => { setPicker({ instructorId, date, hhmm: hh }); setPickQuery(""); }}
                 onRemove={removeKid}
+                onToggleOff={toggleOff}
                 onTogglePublish={togglePublish}
                 dragOverKey={dragOverKey}
                 draggingId={draggingId}
@@ -1050,7 +1084,7 @@ function Overview(props: {
 
 function WeekGrid({
   weekNumber, days, instructors, kidsByCell, offByCell, studentsById, onPick, showOff,
-  building = false, onAdd, onRemove, dragOverKey, draggingId, onChipPointerDown,
+  building = false, onAdd, onRemove, onToggleOff, dragOverKey, draggingId, onChipPointerDown,
 }: {
   weekNumber: number;
   days: string[];
@@ -1063,6 +1097,7 @@ function WeekGrid({
   building?: boolean;
   onAdd?: (instructorId: string, date: string, hh: string) => void;
   onRemove?: (instructorId: string, date: string, hh: string, studentId: string) => void;
+  onToggleOff?: (instructorId: string, date: string, hh: string, weekNumber: number) => void;
   dragOverKey?: string | null;
   draggingId?: string | null;
   onChipPointerDown?: (e: React.PointerEvent, cellKey: string, studentId: string) => void;
@@ -1119,7 +1154,8 @@ function WeekGrid({
                     const kids = (kidsByCell.get(key) ?? [])
                       .map((id) => studentsById.get(id))
                       .filter((s): s is Student => Boolean(s));
-                    const isOff = showOff && offByCell.has(key);
+                    const rawOff = offByCell.has(key);
+                    const isOff = showOff && rawOff;
                     const offEmpty = isOff && kids.length === 0;
                     return (
                       <td
@@ -1134,7 +1170,7 @@ function WeekGrid({
                         }`}
                       >
                         {/* Off-time warning — shown in build mode too so you don't schedule over it */}
-                        {building && isOff ? (
+                        {building && rawOff ? (
                           <span className="mb-0.5 block rounded bg-brand-orange/20 px-1 text-center text-[10px] font-bold uppercase tracking-wide text-brand-orange">
                             Off
                           </span>
@@ -1149,14 +1185,31 @@ function WeekGrid({
                           onChipPointerDown={building ? onChipPointerDown : undefined}
                         />
                         {building && onAdd ? (
-                          <button
-                            onClick={() => onAdd(ins.id, d, hhmm(t))}
-                            className={`mt-0.5 block w-full rounded border border-dashed py-0.5 text-center text-[11px] font-bold hover:bg-brand-sand ${
-                              isOff ? "border-brand-orange/50 text-brand-orange/80" : "border-brand-green/40 text-brand-green/70"
-                            }`}
-                          >
-                            +
-                          </button>
+                          <div className="mt-0.5 flex items-stretch gap-0.5">
+                            <button
+                              onClick={() => onAdd(ins.id, d, hhmm(t))}
+                              title="Add a camper"
+                              className={`flex-1 rounded border border-dashed py-0.5 text-center text-[11px] font-bold hover:bg-brand-sand ${
+                                rawOff ? "border-brand-orange/50 text-brand-orange/80" : "border-brand-green/40 text-brand-green/70"
+                              }`}
+                            >
+                              +
+                            </button>
+                            {onToggleOff ? (
+                              <button
+                                onClick={() => onToggleOff(ins.id, d, hhmm(t), weekNumber)}
+                                title={rawOff ? "Clear time off — instructor is available" : "Mark instructor off for this slot"}
+                                aria-pressed={rawOff}
+                                className={`shrink-0 rounded border px-1 py-0.5 text-[11px] font-bold leading-none transition ${
+                                  rawOff
+                                    ? "border-brand-orange bg-brand-orange text-white hover:brightness-110"
+                                    : "border-brand-orange/40 text-brand-orange/70 hover:bg-brand-orange/10"
+                                }`}
+                              >
+                                {rawOff ? "✓off" : "off"}
+                              </button>
+                            ) : null}
+                          </div>
                         ) : null}
                       </td>
                     );
@@ -1199,12 +1252,13 @@ function AllWeeksDetail(props: {
   building: boolean;
   onAdd: (instructorId: string, date: string, hh: string) => void;
   onRemove: (instructorId: string, date: string, hh: string, studentId: string) => void;
+  onToggleOff?: (instructorId: string, date: string, hh: string, weekNumber: number) => void;
   onTogglePublish?: (weekNumber: number) => void;
   dragOverKey?: string | null;
   draggingId?: string | null;
   onChipPointerDown?: (e: React.PointerEvent, cellKey: string, studentId: string) => void;
 }) {
-  const { instructors, weeks, kidsByCell, offByCell, studentsById, onPick, showOff, setShowOff, building, onAdd, onRemove, onTogglePublish, dragOverKey, draggingId, onChipPointerDown } = props;
+  const { instructors, weeks, kidsByCell, offByCell, studentsById, onPick, showOff, setShowOff, building, onAdd, onRemove, onToggleOff, onTogglePublish, dragOverKey, draggingId, onChipPointerDown } = props;
 
   return (
     <>
@@ -1260,6 +1314,7 @@ function AllWeeksDetail(props: {
                 building={building}
                 onAdd={onAdd}
                 onRemove={onRemove}
+                onToggleOff={onToggleOff}
                 dragOverKey={dragOverKey}
                 draggingId={draggingId}
                 onChipPointerDown={onChipPointerDown}

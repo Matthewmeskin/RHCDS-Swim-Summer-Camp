@@ -495,6 +495,41 @@ export async function saveInstructorAvailability(
     );
 }
 
+/**
+ * Admin: mark a single instructor slot OFF (unavailable) or clear it, from the
+ * Master Schedule builder. Idempotent — marking off twice leaves one row; the
+ * delete clears any matching off rows. (RLS: admin_all_instructor_availability.)
+ */
+export async function setInstructorSlotOff(
+  instructorId: string,
+  lessonDate: string,
+  startTime: string,
+  weekNumber: number | null,
+  off: boolean
+): Promise<void> {
+  const db = requireSupabase();
+  // Clear any existing off row for this exact slot first (keeps it idempotent).
+  const del = await db
+    .from("instructor_availability")
+    .delete()
+    .eq("instructor_id", instructorId)
+    .eq("lesson_date", lessonDate)
+    .eq("start_time", startTime)
+    .eq("is_available", false);
+  if (del.error) throw del.error;
+
+  if (off) {
+    const { error } = await db.from("instructor_availability").insert({
+      instructor_id: instructorId,
+      lesson_date: lessonDate,
+      start_time: startTime,
+      is_available: false,
+      week_number: weekNumber,
+    });
+    if (error) throw error;
+  }
+}
+
 /** instructorId -> ISO timestamp they last submitted availability for a week. */
 export async function fetchAvailabilitySubmissions(
   weekNumber: number
