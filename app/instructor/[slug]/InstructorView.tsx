@@ -17,7 +17,7 @@ import {
   type InstructorWeekData,
 } from "@/lib/data";
 import type { Student, Week } from "@/lib/types";
-import { parseISODate } from "@/lib/format";
+import { parseISODate, formatDayHeader } from "@/lib/format";
 import { groupByLevel } from "@/lib/groups";
 import { buildWeekIcs, downloadIcs, type CalendarLesson } from "@/lib/icsExport";
 
@@ -96,6 +96,13 @@ export default function InstructorView() {
     return Array.from(map.values()).sort((a, b) =>
       `${a.first_name} ${a.last_name}`.localeCompare(`${b.first_name} ${b.last_name}`)
     );
+  }, [data]);
+
+  // Days this instructor is lifeguarding (3:30–4:30pm), sorted.
+  const dutyDays = useMemo(() => {
+    const set = new Set<string>();
+    data?.duties.forEach((d) => set.add(d.lesson_date));
+    return Array.from(set).sort();
   }, [data]);
 
   // Slots that already have a lesson (locked in the availability editor).
@@ -309,6 +316,25 @@ export default function InstructorView() {
             )}
           </section>
         )}
+
+        {dutyDays.length > 0 ? (
+          <section className="camp-card mb-6 border-l-4 border-brand-aqua p-4">
+            <h2 className="font-display text-xl text-brand-green">🛟 Lifeguard duty this week</h2>
+            <p className="mt-1 text-sm text-brand-text/70">
+              You&apos;re on the deck lifeguarding swim camp <strong>3:30–4:30pm</strong> (before lessons) on:
+            </p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {dutyDays.map((d) => {
+                const { day, date } = formatDayHeader(d);
+                return (
+                  <li key={d} className="rounded-full bg-brand-aqua/20 px-3 py-1 text-sm font-bold text-brand-text">
+                    {day} {date}
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ) : null}
 
         <section className="camp-card mb-6 p-3 sm:p-4">
           <CalendarGrid

@@ -13,11 +13,22 @@ export interface SlotWithStudent extends ScheduleSlot {
   students: Student | null;
 }
 
+export interface DutyRow {
+  id: string;
+  instructor_id: string;
+  lesson_date: string;
+  start_time: string;
+  end_time: string;
+  duty: string;
+  week_number: number | null;
+}
+
 export interface InstructorWeekData {
   instructor: Instructor;
   week: Week | null;
   slots: SlotWithStudent[];
   availability: InstructorAvailability[];
+  duties: DutyRow[];
 }
 
 /** Publish/unpublish a week's lesson schedule to instructors. Admin only. */
@@ -332,24 +343,29 @@ export async function fetchWeeks(): Promise<Week[]> {
   return (data ?? []) as Week[];
 }
 
-/** The latest week that has any schedule data, falling back to max week. */
+/**
+ * The week that's most relevant *today*: the one containing today's date, else
+ * the next upcoming week, else (whole season is in the past) the final week.
+ */
 export async function fetchDefaultWeekNumber(): Promise<number | null> {
   const db = requireSupabase();
-  const { data: slot } = await db
-    .from("schedule_slots")
-    .select("week_number")
-    .order("week_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (slot?.week_number != null) return slot.week_number;
-
-  const { data: wk } = await db
+  const { data, error } = await db
     .from("weeks")
-    .select("week_number")
-    .order("week_number", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  return wk?.week_number ?? null;
+    .select("week_number, start_date, end_date")
+    .order("week_number", { ascending: true });
+  if (error) throw error;
+  const weeks = (data ?? []) as { week_number: number; start_date: string; end_date: string }[];
+  if (weeks.length === 0) return null;
+
+  const now = new Date();
+  const pad = (n: number) => (n < 10 ? `0${n}` : `${n}`);
+  const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
+
+  const current = weeks.find((w) => w.start_date <= today && today <= w.end_date);
+  if (current) return current.week_number;
+  const upcoming = weeks.find((w) => today < w.start_date);
+  if (upcoming) return upcoming.week_number;
+  return weeks[weeks.length - 1].week_number;
 }
 
 export async function fetchInstructorBySlug(
@@ -380,11 +396,11 @@ export async function fetchInstructorWeek(
 
   const wk = weekNumber ?? defaultWk ?? null;
   if (wk == null) {
-    return { instructor, week: null, slots: [], availability: [] };
+    return { instructor, week: null, slots: [], availability: [], duties: [] };
   }
 
-  // Wave 2: week + slots + availability in parallel.
-  const [weekRes, slotRes, availRes] = await Promise.all([
+  // Wave 2: week + slots + availability + duties in parallel.
+  const [weekRes, slotRes, availRes, dutyRes] = await Promise.all([
     db.from("weeks").select("*").eq("week_number", wk).maybeSingle(),
     db
       .from("schedule_slots")
@@ -398,16 +414,23 @@ export async function fetchInstructorWeek(
       .select("*")
       .eq("instructor_id", instructor.id)
       .eq("week_number", wk),
+    db
+      .from("instructor_duties")
+      .select("*")
+      .eq("instructor_id", instructor.id)
+      .eq("week_number", wk),
   ]);
 
   if (slotRes.error) throw slotRes.error;
   if (availRes.error) throw availRes.error;
+  if (dutyRes.error) throw dutyRes.error;
 
   return {
     instructor,
     week: (weekRes.data as Week) ?? null,
     slots: (slotRes.data ?? []) as SlotWithStudent[],
     availability: (availRes.data ?? []) as InstructorAvailability[],
+    duties: (dutyRes.data ?? []) as DutyRow[],
   };
 }
 
@@ -525,6 +548,60 @@ export async function setInstructorSlotOff(
       start_time: startTime,
       is_available: false,
       week_number: weekNumber,
+    });
+    if (error) throw error;
+  }
+}
+
+export interface DutyLite {
+  instructor_id: string | null;
+  week_number: number | null;
+  lesson_date: string;
+}
+
+/** All lifeguard-duty rows (lite) — for the master-schedule duty overlay. */
+export async function fetchAllDuties(): Promise<DutyLite[]> {
+  const db = requireSupabase();
+  const out: DutyLite[] = [];
+  const size = 1000;
+  for (let from = 0; ; from += size) {
+    const { data, error } = await db
+      .from("instructor_duties")
+      .select("instructor_id, week_number, lesson_date")
+      .eq("duty", "lifeguard")
+      .range(from, from + size - 1);
+    if (error) throw error;
+    out.push(...((data ?? []) as DutyLite[]));
+    if (!data || data.length < size) break;
+  }
+  return out;
+}
+
+/**
+ * Admin: mark an instructor on lifeguard duty (3:30–4:30pm) for a day, or clear
+ * it, from the Master Schedule builder. Idempotent. (RLS: admin_all_instructor_duties.)
+ */
+export async function setInstructorDuty(
+  instructorId: string,
+  lessonDate: string,
+  weekNumber: number | null,
+  on: boolean
+): Promise<void> {
+  const db = requireSupabase();
+  const del = await db
+    .from("instructor_duties")
+    .delete()
+    .eq("instructor_id", instructorId)
+    .eq("lesson_date", lessonDate)
+    .eq("duty", "lifeguard");
+  if (del.error) throw del.error;
+
+  if (on) {
+    const { error } = await db.from("instructor_duties").insert({
+      instructor_id: instructorId,
+      lesson_date: lessonDate,
+      week_number: weekNumber,
+      duty: "lifeguard",
     });
     if (error) throw error;
   }

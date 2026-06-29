@@ -14,10 +14,13 @@ import {
   fetchAllScheduleSlots,
   fetchAllOffAvailability,
   fetchAllStudents,
+  fetchAllDuties,
   setWeekPublished,
   setInstructorSlotOff,
+  setInstructorDuty,
   type SlotLite,
   type OffLite,
+  type DutyLite,
 } from "@/lib/data";
 import AutoFillModal from "@/components/AutoFillModal";
 import { fireConfetti } from "@/lib/confetti";
@@ -66,6 +69,7 @@ export default function MasterSchedulePage() {
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [slots, setSlots] = useState<SlotLite[]>([]);
   const [off, setOff] = useState<OffLite[]>([]);
+  const [duties, setDuties] = useState<DutyLite[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [metric, setMetric] = useState<Metric>("lessons");
@@ -117,13 +121,15 @@ export default function MasterSchedulePage() {
       fetchAllScheduleSlots(),
       fetchAllOffAvailability(),
       fetchAllStudents(),
+      fetchAllDuties(),
     ])
-      .then(([ins, w, sl, of, st]) => {
+      .then(([ins, w, sl, of, st, du]) => {
         setInstructors(ins);
         setWeeks(w);
         setSlots(sl);
         setOff(of);
         setStudents(st);
+        setDuties(du);
       })
       .finally(() => setLoading(false));
   }, []);
@@ -241,6 +247,16 @@ export default function MasterSchedulePage() {
     }
     return set;
   }, [off]);
+
+  // Lifeguard duty is per instructor per DAY (a fixed 3:30–4:30 shift).
+  const dutyByDay = useMemo(() => {
+    const set = new Set<string>();
+    for (const d of duties) {
+      if (!d.instructor_id) continue;
+      set.add(`${d.instructor_id}__${d.lesson_date}`);
+    }
+    return set;
+  }, [duties]);
 
   // ----- Build mode: editable assignments (cellKey -> studentIds) -----
   // Rebuild from the saved slots whenever not actively editing.
@@ -472,6 +488,30 @@ export default function MasterSchedulePage() {
           : [...prev, { instructor_id: instructorId, week_number: weekNumber, lesson_date: date, start_time: start }]
       );
       setToast({ msg: (e as Error).message ?? "Couldn't update time off", kind: "error" });
+    }
+  }
+
+  // Admin: toggle an instructor's lifeguard duty (3:30–4:30pm) for a whole day.
+  async function toggleDuty(instructorId: string, date: string, weekNumber: number) {
+    const key = `${instructorId}__${date}`;
+    const isOnNow = dutyByDay.has(key);
+    const next = !isOnNow;
+    setDuties((prev) =>
+      next
+        ? [...prev, { instructor_id: instructorId, week_number: weekNumber, lesson_date: date }]
+        : prev.filter((d) => !(d.instructor_id === instructorId && d.lesson_date === date))
+    );
+    try {
+      await setInstructorDuty(instructorId, date, weekNumber, next);
+      const nm = instructors.find((i) => i.id === instructorId)?.name ?? "Instructor";
+      setToast({ msg: next ? `${nm} lifeguarding 3:30–4:30 ✓` : `${nm}'s lifeguard shift cleared`, kind: "success" });
+    } catch (e) {
+      setDuties((prev) =>
+        next
+          ? prev.filter((d) => !(d.instructor_id === instructorId && d.lesson_date === date))
+          : [...prev, { instructor_id: instructorId, week_number: weekNumber, lesson_date: date }]
+      );
+      setToast({ msg: (e as Error).message ?? "Couldn't update lifeguard duty", kind: "error" });
     }
   }
 
@@ -902,6 +942,8 @@ export default function MasterSchedulePage() {
                 onAdd={(instructorId, date, hh) => { setPicker({ instructorId, date, hhmm: hh }); setPickQuery(""); }}
                 onRemove={removeKid}
                 onToggleOff={toggleOff}
+                dutyByDay={dutyByDay}
+                onToggleDuty={toggleDuty}
                 onTogglePublish={togglePublish}
                 autoAdded={building ? autoAdded : undefined}
                 dragOverKey={dragOverKey}
@@ -1211,7 +1253,7 @@ function Overview(props: {
 
 function WeekGrid({
   weekNumber, days, instructors, kidsByCell, offByCell, studentsById, onPick, showOff,
-  building = false, onAdd, onRemove, onToggleOff, autoAdded, dragOverKey, draggingId, onChipPointerDown,
+  building = false, onAdd, onRemove, onToggleOff, dutyByDay, onToggleDuty, autoAdded, dragOverKey, draggingId, onChipPointerDown,
 }: {
   weekNumber: number;
   days: string[];
@@ -1225,6 +1267,8 @@ function WeekGrid({
   onAdd?: (instructorId: string, date: string, hh: string) => void;
   onRemove?: (instructorId: string, date: string, hh: string, studentId: string) => void;
   onToggleOff?: (instructorId: string, date: string, hh: string, weekNumber: number) => void;
+  dutyByDay?: Set<string>;
+  onToggleDuty?: (instructorId: string, date: string, weekNumber: number) => void;
   autoAdded?: Set<string>;
   dragOverKey?: string | null;
   draggingId?: string | null;
@@ -1297,6 +1341,32 @@ function WeekGrid({
                             : isOff ? "bg-brand-orange/10" : kids.length === 0 && !building ? "bg-gray-50" : ""
                         }`}
                       >
+                        {/* Lifeguard duty (3:30–4:30pm) — a whole-day shift, shown once in the day's first slot. */}
+                        {i === 0 && dutyByDay ? (() => {
+                          const onDuty = dutyByDay.has(`${ins.id}__${d}`);
+                          if (building && onToggleDuty) {
+                            return (
+                              <button
+                                onClick={() => onToggleDuty(ins.id, d, weekNumber)}
+                                title={onDuty ? "Lifeguarding 3:30–4:30pm — tap to clear" : "Mark this instructor lifeguarding 3:30–4:30pm"}
+                                aria-pressed={onDuty}
+                                className={`mb-0.5 block w-full rounded px-1 py-0.5 text-center text-[10px] font-bold uppercase leading-tight tracking-wide transition ${
+                                  onDuty ? "bg-brand-aqua text-brand-text hover:brightness-105" : "border border-brand-aqua/50 text-brand-aqua/80 hover:bg-brand-aqua/10"
+                                }`}
+                              >
+                                {onDuty ? "🛟 LG 3:30" : "🛟 LG"}
+                              </button>
+                            );
+                          }
+                          return onDuty ? (
+                            <span
+                              title="Lifeguarding 3:30–4:30pm"
+                              className="mb-0.5 block rounded bg-brand-aqua px-1 text-center text-[10px] font-bold uppercase leading-tight tracking-wide text-brand-text"
+                            >
+                              🛟 LG 3:30
+                            </span>
+                          ) : null;
+                        })() : null}
                         {/* Off-time warning — shown in build mode too so you don't schedule over it */}
                         {building && rawOff ? (
                           <span className="mb-0.5 block rounded bg-brand-orange/20 px-1 text-center text-[10px] font-bold uppercase tracking-wide text-brand-orange">
@@ -1382,13 +1452,15 @@ function AllWeeksDetail(props: {
   onAdd: (instructorId: string, date: string, hh: string) => void;
   onRemove: (instructorId: string, date: string, hh: string, studentId: string) => void;
   onToggleOff?: (instructorId: string, date: string, hh: string, weekNumber: number) => void;
+  dutyByDay?: Set<string>;
+  onToggleDuty?: (instructorId: string, date: string, weekNumber: number) => void;
   onTogglePublish?: (weekNumber: number) => void;
   autoAdded?: Set<string>;
   dragOverKey?: string | null;
   draggingId?: string | null;
   onChipPointerDown?: (e: React.PointerEvent, cellKey: string, studentId: string) => void;
 }) {
-  const { instructors, weeks, kidsByCell, offByCell, studentsById, onPick, showOff, setShowOff, building, onAdd, onRemove, onToggleOff, onTogglePublish, autoAdded, dragOverKey, draggingId, onChipPointerDown } = props;
+  const { instructors, weeks, kidsByCell, offByCell, studentsById, onPick, showOff, setShowOff, building, onAdd, onRemove, onToggleOff, dutyByDay, onToggleDuty, onTogglePublish, autoAdded, dragOverKey, draggingId, onChipPointerDown } = props;
 
   return (
     <>
@@ -1445,6 +1517,8 @@ function AllWeeksDetail(props: {
                 onAdd={onAdd}
                 onRemove={onRemove}
                 onToggleOff={onToggleOff}
+                dutyByDay={dutyByDay}
+                onToggleDuty={onToggleDuty}
                 autoAdded={autoAdded}
                 dragOverKey={dragOverKey}
                 draggingId={draggingId}
