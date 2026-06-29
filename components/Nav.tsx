@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import GlobalSearch from "@/components/GlobalSearch";
 
 export default function Nav({
@@ -15,6 +15,7 @@ export default function Nav({
   // In the admin area the logo should go to the admin dashboard, not the
   // public/staff sign-in page at "/".
   const pathname = usePathname();
+  const router = useRouter();
   const homeHref = pathname?.startsWith("/admin") ? "/admin" : "/";
   return (
     <nav className="no-print sticky top-0 z-30 border-b border-black/10 bg-gradient-to-r from-brand-green to-[#356b4f] text-white shadow-md">
@@ -23,6 +24,16 @@ export default function Nav({
           <Link
             href={backHref}
             aria-label="Back"
+            onClick={(e) => {
+              // Prefer real browser history so "back" returns where you actually
+              // came from (e.g. an admin viewing an instructor page goes back to
+              // the dashboard, not the public sign-in). Falls back to backHref
+              // when there's no in-app history, e.g. a freshly opened tab.
+              if (typeof window !== "undefined" && window.history.length > 1) {
+                e.preventDefault();
+                router.back();
+              }
+            }}
             className="-ml-1 mr-0.5 flex h-9 w-9 items-center justify-center rounded-full text-2xl leading-none transition hover:bg-white/15"
           >
             ‹
