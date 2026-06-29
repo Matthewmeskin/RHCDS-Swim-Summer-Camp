@@ -13,6 +13,7 @@ import {
   fetchDefaultWeekNumber,
   resetInstructorCode,
   setupAllInstructorCodes,
+  saveInstructor,
 } from "@/lib/data";
 import { formatRelative } from "@/lib/format";
 import { fireConfetti } from "@/lib/confetti";
@@ -30,6 +31,9 @@ export default function InstructorAccessPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [settingUp, setSettingUp] = useState(false);
   const [toast, setToast] = useState<{ msg: string; kind: ToastKind } | null>(null);
+  const [onlyMissingEmail, setOnlyMissingEmail] = useState(false);
+  const [emailDraft, setEmailDraft] = useState<Record<string, string>>({});
+  const [savingEmail, setSavingEmail] = useState<string | null>(null);
 
   useEffect(() => {
     setOrigin(window.location.origin);
@@ -51,12 +55,31 @@ export default function InstructorAccessPage() {
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    return instructors.filter((i) => (q ? i.name.toLowerCase().includes(q) : true));
-  }, [instructors, query]);
+    return instructors.filter(
+      (i) =>
+        (q ? i.name.toLowerCase().includes(q) : true) &&
+        (onlyMissingEmail ? !i.email || !i.email.trim() : true)
+    );
+  }, [instructors, query, onlyMissingEmail]);
 
   const availSet = useMemo(() => instructors.filter((i) => subs[i.id]).length, [instructors, subs]);
   const codeSet = useMemo(() => instructors.filter((i) => i.access_code).length, [instructors]);
   const missingCodes = instructors.length - codeSet;
+  const emailSet = useMemo(() => instructors.filter((i) => i.email && i.email.trim()).length, [instructors]);
+
+  async function saveEmail(i: Instructor) {
+    const val = (emailDraft[i.id] ?? i.email ?? "").trim();
+    setSavingEmail(i.id);
+    try {
+      await saveInstructor({ id: i.id, name: i.name, role: i.role, email: val || null, slug: i.slug, active: i.active });
+      setInstructors((prev) => prev.map((x) => (x.id === i.id ? { ...x, email: val || null } : x)));
+      setToast({ msg: `${i.name.split(" ")[0]}'s email saved ✓`, kind: "success" });
+    } catch (e) {
+      setToast({ msg: (e as Error).message ?? "Couldn't save email", kind: "error" });
+    } finally {
+      setSavingEmail(null);
+    }
+  }
 
   async function copy(text: string, label: string) {
     try {
@@ -155,7 +178,7 @@ export default function InstructorAccessPage() {
         <h1 className="font-display text-4xl text-brand-green">Instructor Access</h1>
         <p className="mt-1 text-sm text-brand-text/70">
           Each instructor signs in at <strong>{origin || "your site"}</strong> with their{" "}
-          <strong>name + access code</strong>. Create codes here and share them — no email needed.
+          <strong>email + access code</strong>. They need <em>both</em> — set the email here if it&apos;s missing.
         </p>
 
         <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -179,6 +202,15 @@ export default function InstructorAccessPage() {
           >
             🔑 {codeSet}/{instructors.length} codes
           </span>
+          <button
+            onClick={() => setOnlyMissingEmail((o) => !o)}
+            className={`rounded-full px-3 py-1 text-sm font-semibold transition ${
+              emailSet === instructors.length ? "bg-brand-green/15 text-brand-green" : "bg-brand-orange/15 text-brand-orange"
+            } ${onlyMissingEmail ? "ring-2 ring-brand-orange" : ""}`}
+            title="Tap to show only instructors missing an email"
+          >
+            📧 {emailSet}/{instructors.length} emails{onlyMissingEmail ? " · showing gaps" : ""}
+          </button>
           <span className="rounded-full bg-brand-sand px-3 py-1 text-sm font-semibold text-brand-text">
             {availSet}/{instructors.length} avail.
           </span>
@@ -224,6 +256,34 @@ export default function InstructorAccessPage() {
                         Availability not set
                       </span>
                     )}
+                  </div>
+
+                  {/* Email (needed for sign-in) */}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold uppercase tracking-wide text-brand-text/50">Email</span>
+                    <input
+                      type="email"
+                      inputMode="email"
+                      autoCapitalize="none"
+                      value={emailDraft[i.id] ?? i.email ?? ""}
+                      onChange={(e) => setEmailDraft((prev) => ({ ...prev, [i.id]: e.target.value }))}
+                      placeholder="name@email.com"
+                      className={`min-w-[180px] flex-1 rounded-full border-2 bg-white px-4 py-1.5 text-sm outline-none focus:ring-2 focus:ring-brand-aqua ${
+                        i.email && i.email.trim() ? "border-brand-green/40" : "border-brand-orange"
+                      }`}
+                    />
+                    <button
+                      onClick={() => saveEmail(i)}
+                      disabled={savingEmail === i.id || (emailDraft[i.id] ?? i.email ?? "").trim() === (i.email ?? "").trim()}
+                      className="camp-btn px-4 py-1.5 text-sm disabled:opacity-40"
+                    >
+                      {savingEmail === i.id ? "…" : "Save"}
+                    </button>
+                    {!i.email || !i.email.trim() ? (
+                      <span className="rounded-full bg-brand-orange/15 px-2 py-0.5 text-[11px] font-bold text-brand-orange">
+                        ⚠️ needed to sign in
+                      </span>
+                    ) : null}
                   </div>
 
                   {/* Access code */}
