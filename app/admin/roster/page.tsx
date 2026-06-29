@@ -285,7 +285,7 @@ function InstructorEditor({
   const [active, setActive] = useState(value.active !== false);
   const [busy, setBusy] = useState(false);
 
-  // Imported questionnaire answers (read-only reference).
+  // Editable questionnaire answers.
   const INFO_LABELS: [string, string][] = [
     ["gender_pref", "Gender preference"],
     ["age_pref", "Age preference"],
@@ -296,14 +296,23 @@ function InstructorEditor({
     ["fill_time", "How they want to fill time"],
     ["notes", "Other notes"],
   ];
-  const info = value.info ?? null;
-  const infoRows = info ? INFO_LABELS.filter(([k]) => info[k]) : [];
+  const [info, setInfo] = useState<Record<string, string>>(value.info ?? {});
+  const setInfoField = (k: string, v: string) => setInfo((prev) => ({ ...prev, [k]: v }));
 
   async function save() {
     if (!name.trim()) return onError("Name is required");
     setBusy(true);
     try {
-      await saveInstructor({ id: value.id, name: name.trim(), role, email: email.trim() || null, slug: value.slug, active, phone: phone.trim() || null });
+      // Keep only non-empty answers.
+      const cleanInfo: Record<string, string> = {};
+      for (const [k] of INFO_LABELS) {
+        const v = (info[k] ?? "").trim();
+        if (v) cleanInfo[k] = v;
+      }
+      await saveInstructor({
+        id: value.id, name: name.trim(), role, email: email.trim() || null,
+        slug: value.slug, active, phone: phone.trim() || null, info: cleanInfo,
+      });
       onSaved();
     } catch (e) {
       onError((e as Error).message ?? "Save failed");
@@ -327,19 +336,21 @@ function InstructorEditor({
           <input type="checkbox" checked={active} onChange={(e) => setActive(e.target.checked)} /> Active
         </label>
 
-        {infoRows.length > 0 ? (
-          <div className="rounded-xl border border-brand-green/15 bg-white p-3">
-            <p className="text-xs font-bold uppercase tracking-wide text-brand-green">From their info form</p>
-            <dl className="mt-2 space-y-2">
-              {infoRows.map(([k, label]) => (
-                <div key={k}>
-                  <dt className="text-[11px] font-bold uppercase tracking-wide text-brand-text/50">{label}</dt>
-                  <dd className="text-sm text-brand-text/80">{info![k]}</dd>
-                </div>
-              ))}
-            </dl>
+        <div className="rounded-xl border border-brand-green/15 bg-white p-3">
+          <p className="text-xs font-bold uppercase tracking-wide text-brand-green">Info form (editable)</p>
+          <div className="mt-2 space-y-2">
+            {INFO_LABELS.map(([k, label]) => (
+              <Field key={k} label={label}>
+                <textarea
+                  className={`${inputCls} min-h-[38px] resize-y`}
+                  rows={info[k] && info[k].length > 60 ? 3 : 1}
+                  value={info[k] ?? ""}
+                  onChange={(e) => setInfoField(k, e.target.value)}
+                />
+              </Field>
+            ))}
           </div>
-        ) : null}
+        </div>
 
         <div className="flex gap-2 pt-1">
           <button onClick={save} disabled={busy} className="camp-btn flex-1">{busy ? "Saving…" : "Save"}</button>
