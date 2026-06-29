@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
 /**
- * Instructor sign-in with name + access code (no email). The typed name maps to
- * a hidden login id via the instructor_login_email RPC; the code is the password.
+ * Instructor sign-in with email + access code. The typed email maps to a hidden
+ * login id via the instructor_login_email_by_email RPC; the code is the password.
  */
 export default function InstructorLogin() {
   const router = useRouter();
-  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -18,15 +18,15 @@ export default function InstructorLogin() {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!supabase) return;
-    const fullName = name.trim();
+    const emailAddr = email.trim();
     const accessCode = code.trim().toUpperCase();
-    if (!fullName || !accessCode) return;
+    if (!emailAddr || !accessCode) return;
     setBusy(true);
     setError(null);
     try {
-      const { data: loginEmail } = await supabase.rpc("instructor_login_email", { p_name: fullName });
+      const { data: loginEmail } = await supabase.rpc("instructor_login_email_by_email", { p_email: emailAddr });
       if (!loginEmail) {
-        setError("We couldn't find that name, or no code is set up yet. Check with the aquatics director.");
+        setError("We couldn't find that email, or no code is set up yet. Check with the aquatics director.");
         return;
       }
       const { error: signInError } = await supabase.auth.signInWithPassword({
@@ -47,17 +47,19 @@ export default function InstructorLogin() {
 
   return (
     <form onSubmit={handleSubmit} className="text-left">
-      <label htmlFor="login-name" className="text-xs font-bold uppercase tracking-wide text-brand-green">
-        Your name
+      <label htmlFor="login-email" className="text-xs font-bold uppercase tracking-wide text-brand-green">
+        Your email
       </label>
       <input
-        id="login-name"
-        type="text"
-        autoComplete="name"
-        value={name}
-        onChange={(e) => setName(e.target.value)}
+        id="login-email"
+        type="email"
+        autoComplete="email"
+        inputMode="email"
+        autoCapitalize="none"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
         required
-        placeholder="First Last"
+        placeholder="you@example.com"
         className="mt-1 w-full rounded-full border-2 border-brand-green bg-white px-5 py-3 text-base text-brand-text outline-none focus:ring-2 focus:ring-brand-aqua"
       />
       <label htmlFor="login-code" className="mt-3 block text-xs font-bold uppercase tracking-wide text-brand-green">

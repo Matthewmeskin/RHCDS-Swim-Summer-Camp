@@ -99,7 +99,7 @@ export default function InstructorAccessPage() {
     return (
       `Hi ${i.name.split(" ")[0]}! Here's how to see your Country Day Camp swim schedule:\n` +
       `1. Go to ${origin}\n` +
-      `2. Enter your name: ${i.name}\n` +
+      `2. Enter your email: ${i.email ?? "(ask the office to add your email)"}\n` +
       `3. Access code: ${i.access_code}`
     );
   }

@@ -70,13 +70,13 @@ export default function AdminDashboard() {
       });
     }
     const active = instructors.filter((i) => i.active !== false);
-    const noCode = active.filter((i) => !i.access_code).length;
-    if (noCode > 0) {
+    const cantLogin = active.filter((i) => !i.access_code || !i.email).length;
+    if (cantLogin > 0) {
       out.push({
         key: "codes",
         icon: "🔑",
-        title: `${noCode} instructor${noCode === 1 ? "" : "s"} can't log in yet`,
-        desc: "Set up access codes so they can sign in",
+        title: `${cantLogin} instructor${cantLogin === 1 ? "" : "s"} can't log in yet`,
+        desc: "Add their email + access code so they can sign in",
         href: "/admin/instructors",
       });
     }
