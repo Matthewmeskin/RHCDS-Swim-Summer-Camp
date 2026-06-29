@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import Nav from "@/components/Nav";
 import ConfigNotice from "@/components/ConfigNotice";
 import StudentModal from "@/components/StudentModal";
@@ -24,8 +25,10 @@ function weekRange(w?: Week): string {
   return `${MONTHS[a.getMonth()]} ${a.getDate()} – ${MONTHS[b.getMonth()]} ${b.getDate()}`;
 }
 
-export default function CamperSchedulePage() {
-  const [students, setStudents] = useState<Student[]>([]);
+function CamperScheduleInner() {
+  const searchParams = useSearchParams();
+  const idParam = searchParams.get("id");
+  const [allStudents, setAllStudents] = useState<Student[]>([]);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [weeks, setWeeks] = useState<Week[]>([]);
   const [query, setQuery] = useState("");
@@ -36,6 +39,10 @@ export default function CamperSchedulePage() {
   const [loadingSched, setLoadingSched] = useState(false);
   const [editing, setEditing] = useState(false);
 
+  // Active campers power the in-page search; the full list is kept so a deep
+  // link can still resolve an inactive camper by id.
+  const students = useMemo(() => allStudents.filter((x) => x.active !== false), [allStudents]);
+
   useEffect(() => {
     if (!isSupabaseConfigured) {
       setLoading(false);
@@ -43,20 +50,23 @@ export default function CamperSchedulePage() {
     }
     Promise.all([fetchAllStudents(), fetchWeeks(), fetchInstructors()])
       .then(([s, w, ins]) => {
-        const active = s.filter((x) => x.active !== false);
-        setStudents(active);
+        setAllStudents(s);
         setWeeks(w);
         setInstructors(ins);
-        // Deep link: /admin/camper?id=<studentId> preselects that camper.
-        const id = new URLSearchParams(window.location.search).get("id");
-        if (id) {
-          const match = active.find((x) => x.id === id) ?? s.find((x) => x.id === id);
-          if (match) pick(match);
-        }
       })
       .finally(() => setLoading(false));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // React to the ?id= param — including when the global search (⌘K) pushes a NEW
+  // id while we're already on this page (a query-only change never remounts, so
+  // a mount-only read would keep showing the previous camper).
+  useEffect(() => {
+    if (!idParam || allStudents.length === 0) return;
+    if (selected?.id === idParam) return;
+    const match = allStudents.find((x) => x.id === idParam);
+    if (match) pick(match);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idParam, allStudents]);
 
   async function pick(s: Student) {
     setSelected(s);
@@ -284,11 +294,20 @@ export default function CamperSchedulePage() {
           onClose={() => setEditing(false)}
           onSaved={(u) => {
             setSelected(u);
-            setStudents((prev) => prev.map((s) => (s.id === u.id ? u : s)));
+            setAllStudents((prev) => prev.map((s) => (s.id === u.id ? u : s)));
           }}
         />
       ) : null}
     </main>
+  );
+}
+
+// useSearchParams() must sit inside a Suspense boundary in the App Router.
+export default function CamperSchedulePage() {
+  return (
+    <Suspense fallback={null}>
+      <CamperScheduleInner />
+    </Suspense>
   );
 }
 

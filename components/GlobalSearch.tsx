@@ -37,7 +37,9 @@ export default function GlobalSearch() {
   const [loaded, setLoaded] = useState(false);
   const [instructors, setInstructors] = useState<Instructor[]>([]);
   const [students, setStudents] = useState<Student[]>([]);
+  const [activeIndex, setActiveIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const listRef = useRef<HTMLUListElement>(null);
 
   const load = useCallback(async () => {
     if (loaded || !isSupabaseConfigured) return;
@@ -75,6 +77,14 @@ export default function GlobalSearch() {
     setQuery("");
   }, [open, load]);
 
+  // Reset the highlight whenever the query changes or the palette (re)opens.
+  useEffect(() => { setActiveIndex(0); }, [query, open]);
+
+  // Keep the highlighted row scrolled into view as you arrow through results.
+  useEffect(() => {
+    listRef.current?.querySelector(`[data-idx="${activeIndex}"]`)?.scrollIntoView({ block: "nearest" });
+  }, [activeIndex]);
+
   if (!enabled) return null;
 
   const ql = query.trim().toLowerCase();
@@ -82,6 +92,12 @@ export default function GlobalSearch() {
   const campMatches = ql
     ? students.filter((s) => `${s.first_name} ${s.last_name}`.toLowerCase().includes(ql)).slice(0, 12)
     : [];
+
+  // Flat list (instructors first, then campers) so ↑/↓ can walk every result.
+  const results: ({ kind: "ins"; ins: Instructor } | { kind: "camp"; camp: Student })[] = [
+    ...insMatches.map((i) => ({ kind: "ins" as const, ins: i })),
+    ...campMatches.map((s) => ({ kind: "camp" as const, camp: s })),
+  ];
 
   function pickInstructor(i: Instructor) {
     setOpen(false);
@@ -91,6 +107,27 @@ export default function GlobalSearch() {
   function pickCamper(s: Student) {
     setOpen(false);
     router.push(`/admin/camper?id=${s.id}`);
+  }
+
+  function selectIndex(idx: number) {
+    const r = results[idx];
+    if (!r) return;
+    if (r.kind === "ins") pickInstructor(r.ins);
+    else pickCamper(r.camp);
+  }
+
+  function onInputKeyDown(e: React.KeyboardEvent<HTMLInputElement>) {
+    if (results.length === 0) return;
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((i) => (i + 1) % results.length);
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((i) => (i - 1 + results.length) % results.length);
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      selectIndex(activeIndex);
+    }
   }
 
   return (
@@ -114,22 +151,25 @@ export default function GlobalSearch() {
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={onInputKeyDown}
               placeholder="Search any camper or instructor…"
               className="w-full rounded-full border-2 border-brand-green bg-white px-5 py-2.5 text-sm text-brand-text"
             />
 
             {ql ? (
-              <ul className="mt-3 max-h-[55vh] overflow-auto rounded-xl border border-brand-green/15 bg-white">
+              <ul ref={listRef} className="mt-3 max-h-[55vh] overflow-auto rounded-xl border border-brand-green/15 bg-white">
                 {insMatches.length > 0 ? (
                   <li className="bg-brand-aqualight px-4 py-1 text-[11px] font-bold uppercase tracking-wide text-brand-text/60">
                     Instructors
                   </li>
                 ) : null}
-                {insMatches.map((i) => (
+                {insMatches.map((i, ii) => (
                   <li key={`ins-${i.id}`}>
                     <button
+                      data-idx={ii}
                       onClick={() => pickInstructor(i)}
-                      className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-brand-sand"
+                      onMouseMove={() => setActiveIndex(ii)}
+                      className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm ${activeIndex === ii ? "bg-brand-sand" : "hover:bg-brand-sand"}`}
                     >
                       <span className="text-base">🏊</span>
                       <span className="flex-1 truncate font-semibold">{i.name}</span>
@@ -143,13 +183,16 @@ export default function GlobalSearch() {
                     Campers
                   </li>
                 ) : null}
-                {campMatches.map((s) => {
+                {campMatches.map((s, ci) => {
                   const g = groupByLevel(s.group_level);
+                  const idx = insMatches.length + ci;
                   return (
                     <li key={s.id}>
                       <button
+                        data-idx={idx}
                         onClick={() => pickCamper(s)}
-                        className="flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-brand-sand"
+                        onMouseMove={() => setActiveIndex(idx)}
+                        className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm ${activeIndex === idx ? "bg-brand-sand" : "hover:bg-brand-sand"}`}
                       >
                         {g ? (
                           <span
